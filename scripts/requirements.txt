@@ -1,0 +1,9 @@
+pdfplumber
+pypdf2
+pymupdf
+python-dotenv
+llama-parse
+pytesseract
+pdf2image
+easyocr
+docling
