@@ -1,7 +1,7 @@
 // components/FileContextMenu.tsx
-import React from 'react';
-import { Menu } from '@headlessui/react';
-import { MoreVertical, FileText, Edit, Eye } from 'lucide-react';
+import React from "react";
+import { Menu } from "@headlessui/react";
+import { MoreVertical, FileText, Edit, Eye } from "lucide-react";
 
 interface FileContextMenuProps {
   fileName: string;
@@ -20,7 +20,7 @@ export const FileContextMenu: React.FC<FileContextMenuProps> = ({
   onProposeName,
   onShowProposedName,
   hasSummary,
-  hasProposedName
+  hasProposedName,
 }) => {
   return (
     <Menu as="div" className="relative inline-block text-left">
@@ -28,8 +28,7 @@ export const FileContextMenu: React.FC<FileContextMenuProps> = ({
         <Menu.Button
           aria-label={`Actions for ${fileName}`}
           title={`Actions for ${fileName}`}
-          className="inline-flex justify-center w-full px-4 py-2 text-sm font-medium text-gray-700 bg-white rounded-md hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-opacity-75"
-        >
+          className="inline-flex justify-center w-full px-4 py-2 text-sm font-medium text-gray-700 bg-white rounded-md hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-opacity-75">
           <MoreVertical className="w-5 h-5" />
         </Menu.Button>
       </div>
@@ -39,10 +38,9 @@ export const FileContextMenu: React.FC<FileContextMenuProps> = ({
             {({ active }) => (
               <button
                 className={`${
-                  active ? 'bg-violet-500 text-white' : 'text-gray-900'
+                  active ? "bg-violet-500 text-white" : "text-gray-900"
                 } group flex rounded-md items-center w-full px-2 py-2 text-sm`}
-                onClick={onSummarize}
-              >
+                onClick={onSummarize}>
                 <FileText className="w-5 h-5 mr-2" aria-hidden="true" />
                 Summarize Document
               </button>
@@ -53,10 +51,9 @@ export const FileContextMenu: React.FC<FileContextMenuProps> = ({
               {({ active }) => (
                 <button
                   className={`${
-                    active ? 'bg-violet-500 text-white' : 'text-gray-900'
+                    active ? "bg-violet-500 text-white" : "text-gray-900"
                   } group flex rounded-md items-center w-full px-2 py-2 text-sm`}
-                  onClick={onViewSummary}
-                >
+                  onClick={onViewSummary}>
                   <Eye className="w-5 h-5 mr-2" aria-hidden="true" />
                   View Summary
                 </button>
@@ -69,10 +66,9 @@ export const FileContextMenu: React.FC<FileContextMenuProps> = ({
             {({ active }) => (
               <button
                 className={`${
-                  active ? 'bg-violet-500 text-white' : 'text-gray-900'
+                  active ? "bg-violet-500 text-white" : "text-gray-900"
                 } group flex rounded-md items-center w-full px-2 py-2 text-sm`}
-                onClick={onProposeName}
-              >
+                onClick={onProposeName}>
                 <Edit className="w-5 h-5 mr-2" aria-hidden="true" />
                 Propose Name
               </button>
@@ -83,10 +79,9 @@ export const FileContextMenu: React.FC<FileContextMenuProps> = ({
               {({ active }) => (
                 <button
                   className={`${
-                    active ? 'bg-violet-500 text-white' : 'text-gray-900'
+                    active ? "bg-violet-500 text-white" : "text-gray-900"
                   } group flex rounded-md items-center w-full px-2 py-2 text-sm`}
-                  onClick={onShowProposedName}
-                >
+                  onClick={onShowProposedName}>
                   <Eye className="w-5 h-5 mr-2" aria-hidden="true" />
                   Show Proposed Name
                 </button>
