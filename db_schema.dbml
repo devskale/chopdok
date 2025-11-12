@@ -1,0 +1,25 @@
+Table projects {
+    prjid TEXT [pk]
+    name TEXT
+    status TEXT
+}
+
+Table ausschreibungen {
+    id INTEGER [pk]
+    prjid TEXT [ref: > projects.prjid]  // Foreign key referencing projects
+    version TEXT
+    lot_number TEXT
+    path TEXT
+}
+
+Table angebote {
+    id INTEGER [pk]
+    prjid TEXT [ref: > projects.prjid]  // Foreign key referencing projects
+    version TEXT
+    lot_number TEXT
+    company TEXT
+    path TEXT
+}
+
+Ref: projects.prjid > ausschreibungen.prjid
+Ref: projects.prjid > angebote.prjid

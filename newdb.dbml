@@ -1,0 +1,13 @@
+Table users {
+  id integer
+  username varchar
+}
+
+Table posts {
+  id integer [primary key]
+  title varchar
+  body text [note: 'Content of the post']
+  user_id integer
+}
+
+Ref: posts.user_id > users.id // many-to-one
