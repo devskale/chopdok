@@ -39,7 +39,7 @@ const ImageWithOverlay: React.FC<ImageWithOverlayProps> = ({ src, alt, width, he
     img.src = src;
   }, [src, width, height, overlayText]);
 
-  return <canvas ref={canvasRef} className={className} />;
+  return <canvas ref={canvasRef} className={className} role="img" aria-label={alt} />;
 };
 
 export default ImageWithOverlay;

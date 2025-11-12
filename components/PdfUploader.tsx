@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react'
+import Image from 'next/image'
 import { useSimplePdfUploader, SimplePdfUploaderHook } from '@/lib/simplePdfUploader'
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -92,14 +93,14 @@ export const PdfUploader: React.FC = () => {
     }
   }
 
-  const resetButtonStyles = () => {
+  const resetButtonStyles = useCallback(() => {
     const buttons = document.querySelectorAll('.download-button')
     buttons.forEach(button => {
       button.classList.remove('bg-gray-800', 'text-white')
       button.classList.add('bg-gray-200', 'text-black', 'hover:bg-gray-300')
     })
     setIsZipDownloaded(false)
-  }
+  }, [])
 
   const handleSplitPDF = async () => {
     const modifiedSplitPoints = splitPoints.map(p => p - 1)
@@ -242,9 +243,11 @@ export const PdfUploader: React.FC = () => {
                 return (
                   <div key={thumbnail.pageNumber} className="relative group">
                     <div className={`p-2 ${sectionColor} ${isShaded ? 'bg-gray-400 bg-opacity-50' : ''}`}>
-                      <img 
-                        src={thumbnail.thumbnailUrl} 
-                        alt={`Page ${pageNumber}`} 
+                      <Image
+                        src={thumbnail.thumbnailUrl}
+                        alt={`Page ${pageNumber}`}
+                        width={thumbnail.width}
+                        height={thumbnail.height}
                         className={`w-full ${isShaded ? 'opacity-30' : ''}`}
                       />
                       <div className="flex justify-between items-center mt-1">
