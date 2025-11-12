@@ -240,7 +240,7 @@ export const PdfUploader: React.FC = () => {
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}>
         <div className="flex-shrink-0 mr-4">
-          <label htmlFor="file-upload" className="cursor-pointer">
+          <label htmlFor="file-upload" className="cursor-pointer" aria-label="Select PDF file">
             <Upload className="text-gray-400" size={24} />
           </label>
           <Input
@@ -249,6 +249,7 @@ export const PdfUploader: React.FC = () => {
             accept=".pdf"
             onChange={handleFileChange}
             className="hidden"
+            aria-label="Upload PDF"
           />
         </div>
         {fileInfo ? (
@@ -274,7 +275,8 @@ export const PdfUploader: React.FC = () => {
                 onClick={decreaseThumbnailSize}
                 size="sm"
                 variant="outline"
-                title="Zoom Out (or use '-' key)">
+                title="Zoom Out (or use '-' key)"
+                aria-label="Zoom Out">
                 <Minus size={16} />
               </Button>
               <span className="text-sm font-medium">{thumbnailSize}/4</span>
@@ -282,14 +284,16 @@ export const PdfUploader: React.FC = () => {
                 onClick={increaseThumbnailSize}
                 size="sm"
                 variant="outline"
-                title="Zoom In (or use '+' key)">
+                title="Zoom In (or use '+' key)"
+                aria-label="Zoom In">
                 <Plus size={16} />
               </Button>
               <Button
                 onClick={handleClearAll}
                 size="sm"
                 variant="outline"
-                title="Clear all thumbnails and memory">
+                title="Clear all thumbnails and memory"
+                aria-label="Clear all thumbnails and memory">
                 <Eraser size={16} />
               </Button>
             </div>
@@ -319,27 +323,35 @@ export const PdfUploader: React.FC = () => {
                         className={`w-full ${isShaded ? "opacity-30" : ""}`}
                       />
                       <div className="flex justify-between items-center mt-1">
-                        {isStartOfPortion && (
-                          <span
-                            className="text-sm font-medium bg-white px-1 rounded cursor-pointer"
-                            onClick={() => {
-                              const idx = parseInt(
-                                partName.replace("part", "")
-                              );
-                              const newName = prompt(
-                                "Enter name for this part:",
-                                partNames[idx] ||
-                                  partName.replace("part", "Part ")
-                              );
-                              if (newName !== null) {
-                                handlePartNameChange(idx, newName);
+                        <span
+                          className={`text-sm font-medium bg-white px-1 rounded ${
+                            isStartOfPortion ? "cursor-pointer" : ""
+                          }`}
+                          {...(isStartOfPortion
+                            ? {
+                                onClick: () => {
+                                  const idx = parseInt(
+                                    partName.replace("part", "")
+                                  );
+                                  const newName = prompt(
+                                    "Enter name for this part:",
+                                    partNames[idx] ||
+                                      partName.replace("part", "Part ")
+                                  );
+                                  if (newName !== null) {
+                                    handlePartNameChange(idx, newName);
+                                  }
+                                },
+                                role: "button",
+                                tabIndex: 0,
+                                "aria-label": "Rename part",
                               }
-                            }}>
-                            {partNames[
-                              parseInt(partName.replace("part", ""))
-                            ] || partName.replace("part", "Part ")}
-                          </span>
-                        )}
+                            : { "aria-label": "Section name" })}
+                        >
+                          {partNames[
+                            parseInt(partName.replace("part", ""))
+                          ] || partName.replace("part", "Part ")}
+                        </span>
                         <p className="text-sm ml-auto">Page {pageNumber}</p>
                       </div>
                       <Button
@@ -353,7 +365,10 @@ export const PdfUploader: React.FC = () => {
                           hover:bg-gray-200 hover:text-black
                         `}
                         onClick={() => toggleShadedPage(pageNumber)}
-                        title={isShaded ? "Unshade page" : "Shade out page"}>
+                        title={isShaded ? "Unshade page" : "Shade out page"}
+                        aria-label={isShaded ? "Unshade page" : "Shade out page"}
+                        aria-pressed={isShaded}
+                      >
                         <X size={16} />
                       </Button>
                     </div>
@@ -441,7 +456,11 @@ export const PdfUploader: React.FC = () => {
                   );
                   e.currentTarget.classList.add("bg-gray-800", "text-white");
                 }}>
-                <a href={pdf.url} download={`Part ${partIndex}${partName}.pdf`}>
+                <a
+                  href={pdf.url}
+                  download={`Part ${partIndex}${partName}.pdf`}
+                  aria-label={`Download Part ${partIndex}${partName}.pdf`}
+                >
                   <Download className="mr-2" size={16} />
                   {displayName}
                 </a>
@@ -454,7 +473,9 @@ export const PdfUploader: React.FC = () => {
               isZipDownloaded
                 ? "bg-gray-800 text-white"
                 : "bg-gray-200 text-black hover:bg-gray-300"
-            }`}>
+            }`}
+            aria-label="Download all as zip"
+          >
             <Archive className="mr-2" size={16} />
             Download All as Zip
           </Button>
