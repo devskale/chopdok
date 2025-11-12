@@ -41,6 +41,7 @@ export interface SimplePdfUploaderHook {
   generateThumbnails: (file: File, scale: number) => Promise<void>;
   splitPDF: (splitPoints: number[], shadedPages: number[]) => Promise<void>;
   deletePages: (pageNumbers: number[]) => Promise<void>;
+  clearAll: () => void;
 }
 
 export function useSimplePdfUploader(): SimplePdfUploaderHook {
@@ -153,6 +154,22 @@ export function useSimplePdfUploader(): SimplePdfUploaderHook {
     setModifiedPDF({ name: 'Modified.pdf', url })
   }, [pdfFile])
 
+  const clearAll = useCallback(() => {
+    if (modifiedPDF?.url) {
+      try { URL.revokeObjectURL(modifiedPDF.url) } catch {}
+    }
+    if (splitPDFs.length) {
+      for (const pdf of splitPDFs) {
+        try { URL.revokeObjectURL(pdf.url) } catch {}
+      }
+    }
+    setThumbnails([])
+    setSplitPDFs([])
+    setModifiedPDF(null)
+    setFileInfo(null)
+    setPdfFile(null)
+  }, [modifiedPDF, splitPDFs])
+
   return {
     pdfFile,
     fileInfo,
@@ -163,5 +180,6 @@ export function useSimplePdfUploader(): SimplePdfUploaderHook {
     generateThumbnails,
     splitPDF,
     deletePages
+    , clearAll
   }
 }

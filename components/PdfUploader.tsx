@@ -4,7 +4,7 @@ import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import { useSimplePdfUploader, SimplePdfUploaderHook } from '@/lib/simplePdfUploader'
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Scissors, Plus, Minus, Upload, X, Download, Archive } from 'lucide-react'
+import { Scissors, Plus, Minus, Upload, X, Download, Archive, Eraser } from 'lucide-react'
 import JSZip from 'jszip'
 
 const colors = [
@@ -13,7 +13,7 @@ const colors = [
 ]
 
 export const PdfUploader: React.FC = () => {
-  const { fileInfo, thumbnails, handleFileChange, splitPDF, splitPDFs, modifiedPDF }: SimplePdfUploaderHook = useSimplePdfUploader()
+  const { fileInfo, thumbnails, handleFileChange, splitPDF, splitPDFs, modifiedPDF, clearAll }: SimplePdfUploaderHook = useSimplePdfUploader()
   const [splitPoints, setSplitPoints] = useState<number[]>([])
   const [shadedPages, setShadedPages] = useState<number[]>([])
   const [thumbnailSize, setThumbnailSize] = useState(2) // 1-4 scale
@@ -144,6 +144,20 @@ export const PdfUploader: React.FC = () => {
     }
   }
 
+  const handleClearAll = useCallback(() => {
+    clearAll()
+    setSplitPoints([])
+    setShadedPages([])
+    setThumbnailSize(2)
+    setIsZipDownloaded(false)
+    setPartNames({})
+    const input = document.getElementById('file-upload') as HTMLInputElement | null
+    if (input) input.value = ''
+    if (scrollContainerRef.current) scrollContainerRef.current.scrollTop = 0
+    resetButtonStyles()
+    setIsDragging(false)
+  }, [clearAll, resetButtonStyles])
+
   const handlePartNameChange = (index: number, name: string) => {
     setPartNames(prev => ({
       ...prev,
@@ -208,6 +222,9 @@ export const PdfUploader: React.FC = () => {
               <span className="text-sm font-medium">{thumbnailSize}/4</span>
               <Button onClick={increaseThumbnailSize} size="sm" variant="outline" title="Zoom In (or use '+' key)">
                 <Plus size={16} />
+              </Button>
+              <Button onClick={handleClearAll} size="sm" variant="outline" title="Clear all thumbnails and memory">
+                <Eraser size={16} />
               </Button>
             </div>
           </div>
