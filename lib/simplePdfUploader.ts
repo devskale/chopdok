@@ -24,6 +24,8 @@ export interface FileInfo {
 export interface ThumbnailInfo {
   pageNumber: number;
   thumbnailUrl: string;
+  width: number;
+  height: number;
 }
 
 export interface SplitPDFInfo {
@@ -68,7 +70,7 @@ export function useSimplePdfUploader(): SimplePdfUploaderHook {
 
       await page.render({ canvasContext: context, viewport }).promise
       const thumbnailUrl = canvas.toDataURL()
-      thumbnails.push({ pageNumber: pageNum, thumbnailUrl })
+      thumbnails.push({ pageNumber: pageNum, thumbnailUrl, width: canvas.width, height: canvas.height })
     }
 
     setThumbnails(thumbnails)
