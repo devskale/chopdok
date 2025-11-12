@@ -1,12 +1,49 @@
 import { ChangeEvent, useState, useCallback } from 'react'
-import { PDFDocument, PDFPage } from 'pdf-lib'
+import { PDFDocument } from 'pdf-lib'
 
-let _pdfjs: any = null
-const ensurePdfjs = async () => {
+type PdfDocumentLike = {
+  numPages: number;
+  getPage: (pageNumber: number) => Promise<PdfPageLike>;
+}
+
+type Viewport = {
+  height: number;
+  width: number;
+}
+
+type RenderTask = {
+  promise: Promise<void>;
+}
+
+type PdfPageLike = {
+  getViewport: (params: { scale: number }) => Viewport;
+  render: (args: { canvasContext: CanvasRenderingContext2D; viewport: Viewport }) => RenderTask;
+}
+
+type PdfjsLike = {
+  version: string;
+  GlobalWorkerOptions: { workerSrc: string };
+  getDocument: (src: ArrayBuffer | Uint8Array | { data: ArrayBuffer }) => { promise: PdfDocumentLike };
+}
+
+let _pdfjs: PdfjsLike | null = null
+const ensurePdfjs = async (): Promise<PdfjsLike | null> => {
   if (typeof window === 'undefined') return null
   if (_pdfjs) return _pdfjs
   const mod = await import('pdfjs-dist')
-  const pdfjs = (mod as any)
+  const maybeDefault = (mod as unknown as Record<string, unknown>).default ?? mod
+  const candidate = maybeDefault as unknown
+  const isPdfjs = (obj: unknown): obj is PdfjsLike => {
+    if (!obj || typeof obj !== 'object') return false
+    const o = obj as { GlobalWorkerOptions?: unknown; getDocument?: unknown; version?: unknown }
+    return (
+      typeof o.version === 'string' &&
+      o.GlobalWorkerOptions !== undefined &&
+      typeof o.getDocument === 'function'
+    )
+  }
+  if (!isPdfjs(candidate)) return null
+  const pdfjs = candidate
   pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`
   _pdfjs = pdfjs
   return _pdfjs
