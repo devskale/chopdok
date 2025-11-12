@@ -1,5 +1,6 @@
 import { PdfUploader } from "@/components/PdfUploader";
 import Image from "next/image";
+import Link from "next/link";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -40,6 +41,12 @@ export default function Page() {
           <PdfUploader />
         </div>
       </main>
+      <footer className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 text-center text-sm text-gray-500">
+        <div className="flex items-center justify-center gap-4">
+          <span>appversion v1.5</span>
+          <Link href="/chopdok/disclaimer" className="underline hover:no-underline">Disclaimer</Link>
+        </div>
+      </footer>
     </div>
   );
 }
