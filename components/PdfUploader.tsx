@@ -231,7 +231,6 @@ export const PdfUploader: React.FC = () => {
 
   return (
     <div className="container mx-auto p-4">
-      <h1 className="text-2xl font-bold mb-4">Simple PDF Uploader</h1>
       <div
         className={`flex items-center p-4 border rounded-lg ${
           isDragging ? "border-blue-500 bg-blue-50" : "border-gray-300"
