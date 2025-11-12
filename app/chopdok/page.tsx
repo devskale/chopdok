@@ -1,5 +1,13 @@
 import { PdfUploader } from "@/components/PdfUploader";
 import Image from "next/image";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  icons: {
+    icon: "/chop.png",
+    apple: "/chop.png",
+  },
+};
 
 export default function Page() {
   return (
