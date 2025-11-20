@@ -12,39 +12,59 @@ export const metadata: Metadata = {
 
 export default function Page() {
   return (
-    <div className="min-h-screen bg-gray-100">
-      <header className="bg-white shadow">
-        <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8 flex justify-between items-center">
-          <div className="flex items-center gap-2">
-            <Image
-              src="/choppr.png"
-              alt="ChopDok icon"
-              width={36}
-              height={36}
-            />
-            <h1 className="text-3xl font-bold text-gray-900">ChopDok</h1>
+    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 text-gray-900 font-sans selection:bg-primary/20">
+      <header className="sticky top-0 z-50 w-full border-b bg-white/80 backdrop-blur-md supports-[backdrop-filter]:bg-white/60">
+        <div className="container mx-auto px-4 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="relative w-8 h-8">
+              <Image
+                src="/choppr.png"
+                alt="ChopDok icon"
+                fill
+                className="object-contain"
+              />
+            </div>
+            <h1 className="text-xl font-bold tracking-tight">ChopDok</h1>
           </div>
-          Painless PDF chopping
-          <div className="relative w-24 h-24">
-            <Image
-              src="https://skale.dev/wp-content/uploads/2024/02/skale_redwhite-e1708931820958.png"
-              alt="Logo"
-              fill
-              className="object-contain filter grayscale"
-              priority
-            />
+          <div className="hidden md:flex items-center gap-6 text-sm font-medium text-gray-600">
+            <span>Painless PDF chopping</span>
+          </div>
+          <div className="flex items-center gap-4">
+            <div className="relative w-20 h-8 opacity-50 hover:opacity-100 transition-opacity">
+              <Image
+                src="https://skale.dev/wp-content/uploads/2024/02/skale_redwhite-e1708931820958.png"
+                alt="Logo"
+                fill
+                className="object-contain filter grayscale"
+                priority
+              />
+            </div>
           </div>
         </div>
       </header>
-      <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-        <div className="px-4 py-6 sm:px-0">
-          <PdfUploader />
+
+      <main className="container mx-auto px-4 py-12 sm:px-6 lg:px-8 min-h-[calc(100vh-8rem)] flex flex-col justify-center">
+        <div className="w-full max-w-5xl mx-auto">
+          <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
+            <PdfUploader />
+          </div>
         </div>
       </main>
-      <footer className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 text-center text-sm text-gray-500">
-        <div className="flex items-center justify-center gap-4">
-          <span>appversion v1.5</span>
-          <Link href="/chopdok/disclaimer" className="underline hover:no-underline">Disclaimer</Link>
+
+      <footer className="border-t bg-white">
+        <div className="container mx-auto px-4 py-6 flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-gray-500">
+          <div className="flex items-center gap-4">
+            <span className="font-semibold text-gray-900">ChopDok</span>
+            <span>v1.5</span>
+          </div>
+          <div className="flex items-center gap-6">
+            <Link
+              href="/chopdok/disclaimer"
+              className="hover:text-gray-900 transition-colors">
+              Disclaimer
+            </Link>
+            <span>&copy; {new Date().getFullYear()} skale.dev</span>
+          </div>
         </div>
       </footer>
     </div>
