@@ -46,7 +46,7 @@ export default function DisclaimerPage() {
               <div className="space-y-2">
                 <h3 className="text-xl font-semibold text-gray-900">No Warranty</h3>
                 <p className="text-gray-600 leading-relaxed">
-                  This software is provided "as is", without warranty of any kind, express or implied. While we strive for reliability, we cannot guarantee that the software will be error-free or suitable for every purpose. Please always keep a backup of your original documents.
+                  This software is provided &quot;as is&quot;, without warranty of any kind, express or implied. While we strive for reliability, we cannot guarantee that the software will be error-free or suitable for every purpose. Please always keep a backup of your original documents.
                 </p>
               </div>
             </section>
@@ -54,7 +54,7 @@ export default function DisclaimerPage() {
             <div className="bg-gray-50 rounded-xl p-6 border border-gray-100">
               <h4 className="font-medium text-gray-900 mb-2">Technical Note</h4>
               <p className="text-sm text-gray-500">
-                We use standard web technologies (PDF.js, pdf-lib) to manipulate files directly in your browser memory. Once you close the tab, all processed data is cleared from your browser's memory.
+                We use standard web technologies (PDF.js, pdf-lib) to manipulate files directly in your browser memory. Once you close the tab, all processed data is cleared from your browser&apos;s memory.
               </p>
             </div>
           </div>
