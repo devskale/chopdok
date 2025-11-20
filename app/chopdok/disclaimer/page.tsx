@@ -1,40 +1,77 @@
+import Link from "next/link";
+import { ArrowLeft, Shield, Lock, AlertCircle } from "lucide-react";
+import { Button } from "@/components/ui/button";
+
 export default function DisclaimerPage() {
   return (
-    <div className="min-h-screen bg-gray-100">
-      <header className="bg-white shadow">
-        <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-          <h1 className="text-2xl font-semibold text-gray-900">Disclaimer</h1>
+    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white flex flex-col">
+      <header className="border-b bg-white/50 backdrop-blur-sm sticky top-0 z-10">
+        <div className="container mx-auto px-4 h-16 flex items-center">
+          <Link href="/chopdok" className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors">
+            <ArrowLeft className="w-4 h-4" />
+            <span className="font-medium">Back to App</span>
+          </Link>
         </div>
       </header>
-      <main className="max-w-3xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-        <div className="bg-white shadow rounded p-6 space-y-4">
-          <h2 className="text-lg font-semibold text-gray-900">ChopDok by skale.dev</h2>
-          <p className="text-gray-700">
-            This application is provided free of charge, strictly on an “as is” and “as available” basis.
-            To the maximum extent permitted by applicable law, skale.dev disclaims all warranties, whether
-            express, implied, statutory, or otherwise, including without limitation any implied warranties
-            of merchantability, fitness for a particular purpose, non-infringement, and uninterrupted or
-            error-free operation.
-          </p>
-          <p className="text-gray-700">
-            Use is at your sole risk. In no event will skale.dev or the authors be liable for any direct,
-            indirect, incidental, consequential, special, exemplary, or punitive damages, or for any loss
-            of data, business interruption, loss of profits, or reputational harm arising out of or in
-            connection with your use of the application, even if advised of the possibility of such damages.
-          </p>
-          <p className="text-gray-700">
-            No data is stored or transmitted by ChopDok; all PDF handling and transformations occur locally
-            within your browser. You are solely responsible for ensuring that you have the legal right to
-            process the documents you upload and for safeguarding any sensitive or confidential information.
-          </p>
-          <p className="text-gray-700">
-            You agree not to use ChopDok in violation of any law, regulation, or third‑party rights, and you
-            acknowledge that you bear full responsibility for compliance. By continuing to use ChopDok, you
-            signify your acceptance of this disclaimer and release skale.dev and the authors from any and all
-            claims arising from your use of the application.
-          </p>
+
+      <main className="flex-1 container mx-auto px-4 py-12 max-w-3xl">
+        <div className="bg-white rounded-2xl shadow-sm border p-8 md:p-12 space-y-8">
+          <div className="text-center space-y-4">
+            <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center mx-auto mb-6">
+              <Shield className="w-8 h-8 text-blue-600" />
+            </div>
+            <h1 className="text-3xl font-bold tracking-tight text-gray-900">Disclaimer & Privacy</h1>
+            <p className="text-gray-500 text-lg">
+              Transparency about how ChopDok handles your data.
+            </p>
+          </div>
+
+          <div className="space-y-8">
+            <section className="flex gap-4 items-start">
+              <div className="p-2 bg-green-50 rounded-lg shrink-0 mt-1">
+                <Lock className="w-5 h-5 text-green-600" />
+              </div>
+              <div className="space-y-2">
+                <h3 className="text-xl font-semibold text-gray-900">Local Processing Only</h3>
+                <p className="text-gray-600 leading-relaxed">
+                  ChopDok operates entirely within your web browser. Your PDF files are <strong>never uploaded</strong> to any server. All processing (splitting, deleting pages, renaming) happens locally on your device. This ensures your documents remain completely private and secure.
+                </p>
+              </div>
+            </section>
+
+            <section className="flex gap-4 items-start">
+              <div className="p-2 bg-orange-50 rounded-lg shrink-0 mt-1">
+                <AlertCircle className="w-5 h-5 text-orange-600" />
+              </div>
+              <div className="space-y-2">
+                <h3 className="text-xl font-semibold text-gray-900">No Warranty</h3>
+                <p className="text-gray-600 leading-relaxed">
+                  This software is provided "as is", without warranty of any kind, express or implied. While we strive for reliability, we cannot guarantee that the software will be error-free or suitable for every purpose. Please always keep a backup of your original documents.
+                </p>
+              </div>
+            </section>
+
+            <div className="bg-gray-50 rounded-xl p-6 border border-gray-100">
+              <h4 className="font-medium text-gray-900 mb-2">Technical Note</h4>
+              <p className="text-sm text-gray-500">
+                We use standard web technologies (PDF.js, pdf-lib) to manipulate files directly in your browser memory. Once you close the tab, all processed data is cleared from your browser's memory.
+              </p>
+            </div>
+          </div>
+
+          <div className="pt-8 border-t flex justify-center">
+            <Button asChild size="lg" className="rounded-full px-8">
+              <Link href="/chopdok">
+                I Understand, Take Me Back
+              </Link>
+            </Button>
+          </div>
         </div>
       </main>
+
+      <footer className="py-8 text-center text-sm text-gray-400">
+        &copy; {new Date().getFullYear()} skale.dev
+      </footer>
     </div>
   );
 }
