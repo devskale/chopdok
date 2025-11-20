@@ -181,8 +181,9 @@ export function useSimplePdfUploader(): SimplePdfUploaderHook {
       const splitPDFInfos: SplitPDFInfo[] = await Promise.all(
         splitDocs.map(async (doc, index) => {
           const pdfBytes = await doc.save();
-          const blob = new Blob([pdfBytes as any], { type: "application/pdf" });
-          const url = URL.createObjectURL(blob);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const file = new File([pdfBytes as any], `Split_${index + 1}.pdf`, { type: "application/pdf" });
+          const url = URL.createObjectURL(file);
           return { name: `Split_${index + 1}.pdf`, url };
         })
       );
@@ -209,8 +210,9 @@ export function useSimplePdfUploader(): SimplePdfUploaderHook {
       copiedPages.forEach((page) => newDoc.addPage(page));
 
       const modifiedPdfBytes = await newDoc.save();
-      const blob = new Blob([modifiedPdfBytes as any], { type: "application/pdf" });
-      const url = URL.createObjectURL(blob);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const file = new File([modifiedPdfBytes as any], "Modified.pdf", { type: "application/pdf" });
+      const url = URL.createObjectURL(file);
 
       setModifiedPDF({ name: "Modified.pdf", url });
     },

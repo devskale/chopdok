@@ -27,7 +27,7 @@ export default function Page() {
             <h1 className="text-xl font-bold tracking-tight">ChopDok</h1>
           </div>
           <div className="hidden md:flex items-center gap-6 text-sm font-medium text-gray-600">
-            <span>Painless PDF chopping</span>
+            <span>Painless PDF chopping, free, in-browser editing, no ads, no data collection</span>
           </div>
           <div className="flex items-center gap-4">
             <div className="relative w-20 h-8 opacity-50 hover:opacity-100 transition-opacity">
@@ -53,9 +53,9 @@ export default function Page() {
 
       <footer className="border-t bg-white">
         <div className="container mx-auto px-4 py-6 flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-gray-500">
-          <div className="flex items-center gap-4">
-            <span className="font-semibold text-gray-900">ChopDok</span>
-            <span>v1.5</span>
+          <div className="flex items-center gap-2">
+            <span className="font-semibold">ChopDok</span>
+            <span>v1.7</span>
           </div>
           <div className="flex items-center gap-6">
             <Link
