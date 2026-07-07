@@ -58,17 +58,17 @@ Source: code review of `devskale/chopdok` (live at https://www.skale.dev/chopdok
 
 ## 🟡 P3 — Dependencies
 
-- [ ] **Remove unused** (grep-confirmed zero imports): `react-pdf`, `@react-pdf-viewer/core`, `@react-pdf-viewer/default-layout`, `@react-pdf-viewer/thumbnail`, `react-beautiful-dnd` (also unmaintained), `docx`, `file-saver`, `react-dropzone`, `zustand` (also a `5.0.0-rc.2` RC), `react-hot-toast` (duplicated by the radix `Toaster`), `shadcn-ui` (that's the CLI, not a runtime dep), `fs` (a bogus placeholder package).
-- [ ] **Upgrade `pdfjs-dist`** (3.4.120 → 4.x/5.x; old version has known CVEs) and **`pdf-lib`** (1.17.1 is stale).
-- [ ] **Bundle the pdf.js worker locally** instead of loading from cdnjs at runtime (`lib/simplePdfUploader.ts`): a privacy-first "runs locally" app has a hard runtime CDN dependency, and a version mismatch 404s the worker. Use `import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'`.
-- [ ] **Pick one package manager** — both `package-lock.json` (npm) and `pnpm-lock.yaml` (pnpm) are committed.
+- [x] **Remove unused** — done (`0aed28f`): removed 14 zero-import deps (react-pdf, @react-pdf-viewer/*, react-beautiful-dnd, docx, file-saver, react-dropzone, zustand, react-hot-toast, react-markdown, shadcn-ui, fs, @headlessui/react) → 34 direct deps down to 20. Validated: app still uploads/renders.
+- [ ] *(deferred — deliberate migration)* **Upgrade `pdfjs-dist` to v4/5** — now on latest v3 (`3.11.174`). v4+ is a breaking change: the worker ships as `.mjs` (module worker), so migrate `ensurePdfjs` to `GlobalWorkerOptions.workerPort = new Worker(new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url), { type: 'module' })` and drop the `public/` copy. Deferred to avoid destabilising the working app; lower urgency now that we're on the latest v3. (`pdf-lib` 1.17.1 is also stale but stable — upgrade separately.)
+- [x] **Bundle the pdf.js worker locally** — done (`0aed28f`): worker copied to `public/pdf.worker.min.js`, `workerSrc` re-pointed to `/chopdok/pdf.worker.min.js`; no cdnjs runtime dependency (confirmed via the Resource Timing API). The "local processing only" claim now fully holds.
+- [x] **Pick one package manager** — done: removed `package-lock.json`; pnpm (`pnpm-lock.yaml`) is the single manager.
 
 ---
 
 ## ⚪ P4 — Minor / optional
 
 - [ ] No tests, no CI config.
-- [ ] Optional: prune unused shadcn ui components (`checkbox`, `progress`, `select`, `table`, `textarea`, `scroll-area`, `toast`/`toaster`).
+- [x] Optional: prune unused shadcn ui components — done: removed `card`, `checkbox`, `scroll-area`, `select`, `table`, `textarea`, `badge` (all 0 uses) + their 3 radix deps (`react-checkbox`, `react-scroll-area`, `react-select`). Kept `progress` (used by #7) and `toast`/`toaster` (used by #6). Now 17 direct deps.
 - [x] Optional: prune unused `public/` images — done: removed `chop.png` (unused after the favicon fix), `skale.dev.logo.png`, `skale300x200.logo.png`, `wko.png`, `wko.svg`, `wwhb_logo*.png` (all 0 refs). Only `choppr.png` remains; app still serves (200).
 - [ ] `tsconfig` `incremental: true` → keep `*.tsbuildinfo` gitignored.
 - [ ] `basePath: '/chopdok'` is hardcoded (`next.config.mjs`); dev requires `localhost:3000/chopdok`. Documented in `DEPLOYMENT.md`, but consider an env-driven value for local ergonomics.
