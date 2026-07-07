@@ -14,7 +14,7 @@ All fixes browser-validated with rodney against `localhost:3000/chopdok`; `tsc -
 ## 🔲 Open — priority order
 
 - [ ] **(optional · non-security)** Old commit SHAs (`32d674a`, `df77c98`) are still served via the read-only `refs/pull/1/head` (a closed bot PR GitHub won't let users delete). Optional tidy-up only — contents are non-sensitive. Options: GitHub Support (https://support.github.com/contact → *Remove cached views*), or delete + recreate the repo (needs `delete_repo` scope).
-- [ ] **(deferred · breaking migration)** Upgrade `pdfjs-dist` 3.11.174 → v4/5. v4+ ships the worker as `.mjs` (module worker): migrate `ensurePdfjs` to `GlobalWorkerOptions.workerPort = new Worker(new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url), { type: 'module' })` and drop `public/pdf.worker.min.js`. Defer to a focused session — app works and is already on latest v3. (Also `pdf-lib` 1.17.1, stale but stable.)
+- [ ] **(investigated · currently blocked)** Upgrade `pdfjs-dist` past v3. Tried v6 (6.1.200): blocked — it requires `Promise.try` (Chrome ~143+, mid-2025), too new a baseline for a public app, and not polyfillable inside the prebuilt worker. Staying on `3.11.174` (latest v3, broadly compatible). Revisit once `Promise.try` is universal; the migration also needs the module-worker change (`GlobalWorkerOptions.workerPort = new Worker(url, { type: 'module' })`). Reverted + re-validated on a clean build (6 thumbnails). (Also `pdf-lib` 1.17.1, stale but stable.)
 - [ ] **Tests / CI** — none today. Add a framework and cover the `useSimplePdfUploader` hook (the bulk of the logic surface).
 - [ ] **(minor)** `basePath: '/chopdok'` is hardcoded in `next.config.mjs`; consider an env-driven value for local ergonomics.
 
