@@ -7,7 +7,7 @@ export default function DisclaimerPage() {
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white flex flex-col">
       <header className="border-b bg-white/50 backdrop-blur-sm sticky top-0 z-10">
         <div className="container mx-auto px-4 h-16 flex items-center">
-          <Link href="/" className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors">
+          <Link href="/chopdok" className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors">
             <ArrowLeft className="w-4 h-4" />
             <span className="font-medium">Back to App</span>
           </Link>
@@ -61,7 +61,7 @@ export default function DisclaimerPage() {
 
           <div className="pt-8 border-t flex justify-center">
             <Button asChild size="lg" className="rounded-full px-8">
-              <Link href="/">
+              <Link href="/chopdok">
                 I Understand, Take Me Back
               </Link>
             </Button>

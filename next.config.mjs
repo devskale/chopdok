@@ -1,6 +1,5 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  basePath: "/chopdok",
   images: {
     remotePatterns: [
       { protocol: "http", hostname: "localhost" },
