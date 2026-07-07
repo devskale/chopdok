@@ -1,5 +1,13 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  basePath: "/chopdok",
+  async redirects() {
+    return [
+      // bare-root visitors (e.g. chopdok.vercel.app/) -> the app, so chopdok's
+      // own domain behaves as before despite basePath mounting it under /chopdok.
+      { source: "/", destination: "/chopdok", permanent: false, basePath: false },
+    ];
+  },
   images: {
     remotePatterns: [
       { protocol: "http", hostname: "localhost" },
