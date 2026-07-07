@@ -32,7 +32,7 @@ export default function Page() {
           <div className="flex items-center gap-4">
             <div className="relative w-20 h-8 opacity-50 hover:opacity-100 transition-opacity">
               <Image
-                src="https://skale.dev/wp-content/uploads/2024/02/skale_redwhite-e1708931820958.png"
+                src="https://skale.dev/logos/skalelogo_red_trans.png"
                 alt="Logo"
                 fill
                 className="object-contain filter grayscale"
