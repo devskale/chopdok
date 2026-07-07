@@ -18,7 +18,7 @@ export default function Page() {
           <div className="flex items-center gap-3">
             <div className="relative w-8 h-8">
               <Image
-                src="/choppr.png"
+                src="/chopdok/choppr.png"
                 alt="ChopDok icon"
                 fill
                 className="object-contain"
