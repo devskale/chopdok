@@ -1,11 +1,14 @@
 /** @type {import('next').NextConfig} */
+const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? "/chopdok";
+
 const nextConfig = {
-  basePath: "/chopdok",
+  basePath,
   async redirects() {
+    // When mounted under a base path, redirect the bare root to it so the app's
+    // own domain behaves as before. Skip when running at the domain root.
+    if (basePath === "") return [];
     return [
-      // bare-root visitors (e.g. chopdok.vercel.app/) -> the app, so chopdok's
-      // own domain behaves as before despite basePath mounting it under /chopdok.
-      { source: "/", destination: "/chopdok", permanent: false, basePath: false },
+      { source: "/", destination: basePath, permanent: false, basePath: false },
     ];
   },
   images: {

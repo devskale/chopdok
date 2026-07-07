@@ -1,6 +1,7 @@
 import { ChangeEvent, useState, useCallback, useRef } from "react";
 import { toast } from "@/hooks/use-toast";
 import { splitPdfDocument } from "@/lib/pdfSplit";
+import { BASE_PATH } from "@/lib/basePath";
 
 type PdfDocumentLike = {
   numPages: number;
@@ -57,7 +58,7 @@ const ensurePdfjs = async (): Promise<PdfjsLike | null> => {
   const pdfjs = candidate;
   // Local worker (copied from the installed pdfjs-dist) — no CDN runtime dep,
   // version-matched, and honours the "local processing only" claim.
-  pdfjs.GlobalWorkerOptions.workerSrc = "/chopdok/pdf.worker.min.js";
+  pdfjs.GlobalWorkerOptions.workerSrc = `${BASE_PATH}/pdf.worker.min.js`;
   _pdfjs = pdfjs;
   return _pdfjs;
 };

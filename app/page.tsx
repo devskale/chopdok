@@ -2,11 +2,12 @@ import { PdfUploader } from "@/components/PdfUploader";
 import Image from "next/image";
 import Link from "next/link";
 import type { Metadata } from "next";
+import { BASE_PATH } from "@/lib/basePath";
 
 export const metadata: Metadata = {
   icons: {
-    icon: "/chopdok/choppr.png",
-    apple: "/chopdok/choppr.png",
+    icon: `${BASE_PATH}/choppr.png`,
+    apple: `${BASE_PATH}/choppr.png`,
   },
 };
 
@@ -18,7 +19,7 @@ export default function Page() {
           <div className="flex items-center gap-3">
             <div className="relative w-8 h-8">
               <Image
-                src="/chopdok/choppr.png"
+                src={`${BASE_PATH}/choppr.png`}
                 alt="ChopDok icon"
                 fill
                 className="object-contain"

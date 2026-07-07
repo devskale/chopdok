@@ -17,7 +17,7 @@ All fixes browser-validated with rodney against `localhost:3000/chopdok`; `tsc -
 - [ ] **(investigated · currently blocked)** Upgrade `pdfjs-dist` past v3. Tried v6 (6.1.200): blocked — it requires `Promise.try` (Chrome ~143+, mid-2025), too new a baseline for a public app, and not polyfillable inside the prebuilt worker. Staying on `3.11.174` (latest v3, broadly compatible). Revisit once `Promise.try` is universal; the migration also needs the module-worker change (`GlobalWorkerOptions.workerPort = new Worker(url, { type: 'module' })`). Reverted + re-validated on a clean build (6 thumbnails). (Also `pdf-lib` 1.17.1, stale but stable.)
 - [~] **Tests** — vitest added (`pnpm test`), **15 tests** over 3 files: `getPartInfo` (part identity / #4 anchor), `computePartRanges`, `splitPdfDocument` (real pdf-lib integration), and `useSimplePdfUploader.loadFile` non-PDF guard (hook test, jsdom). Still uncovered: the hook's pdf.js success path (needs pdf.js + canvas mocking) and component/UI tests.
 - [x] **CI** — done: `.github/workflows/ci.yml` runs `pnpm test` + `pnpm build` on push/PR (production build verified green locally).
-- [ ] **(minor)** `basePath: '/chopdok'` is hardcoded in `next.config.mjs`; consider an env-driven value for local ergonomics.
+- [x] **(minor)** `basePath` — done: centralised the `/chopdok` prefix into `lib/basePath.ts` (`BASE_PATH`); default unchanged (production-safe), overridable via `NEXT_PUBLIC_BASE_PATH=` for local-root dev. Default behaviour validated (favicon + worker + thumbnails all serve from `/chopdok/`).
 
 ## Notes
 - History-rewrite backups: `/tmp/chopdok-backup-20260707-232522.bundle`, `/tmp/chopdok-rescued-20260707-232522/`.

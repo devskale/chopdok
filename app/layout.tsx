@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
+import { BASE_PATH } from "@/lib/basePath";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -18,8 +19,8 @@ export const metadata: Metadata = {
   title: "ChopDok",
   description: "Painless PDF chopping — split, delete, and rename pages, free and entirely in your browser. No uploads, no ads, no data collection.",
   icons: {
-    icon: "/chopdok/choppr.png",
-    apple: "/chopdok/choppr.png",
+    icon: `${BASE_PATH}/choppr.png`,
+    apple: `${BASE_PATH}/choppr.png`,
   },
 };
 
