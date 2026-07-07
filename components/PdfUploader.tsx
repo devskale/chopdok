@@ -12,6 +12,7 @@ import {
   useSimplePdfUploader,
   SimplePdfUploaderHook,
 } from "@/lib/simplePdfUploader";
+import { getPartInfo } from "@/lib/parts";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -120,18 +121,7 @@ export const PdfUploader: React.FC = () => {
 
   // A part's identity is its START PAGE — stable when splits are added/removed
   // around it. The positional index is only used for the default "Part N" label.
-  const getPartInfo = (pageNumber: number): { startPage: number; partIndex: number } => {
-    const starts = [1, ...splitPoints].sort((a, b) => a - b);
-    let startPage = 1;
-    let partIndex = 1;
-    for (let i = 0; i < starts.length; i++) {
-      if (starts[i] <= pageNumber) {
-        startPage = starts[i];
-        partIndex = i + 1;
-      }
-    }
-    return { startPage, partIndex };
-  };
+  // (Logic lives in lib/parts.ts so it's unit-tested.)
 
   const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -408,7 +398,7 @@ export const PdfUploader: React.FC = () => {
                 const isShaded = shadedPages.includes(pageNumber);
                 const sectionColor = getSectionColor(pageNumber);
                 const { startPage: partStartPage, partIndex: currentPartIndex } =
-                  getPartInfo(pageNumber);
+                  getPartInfo(splitPoints, pageNumber);
                 const isStartOfPortion =
                   pageNumber === 1 || splitPoints.includes(pageNumber);
 
