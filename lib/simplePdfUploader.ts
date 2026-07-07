@@ -1,6 +1,6 @@
 import { ChangeEvent, useState, useCallback, useRef } from "react";
-import { PDFDocument } from "pdf-lib";
 import { toast } from "@/hooks/use-toast";
+import { splitPdfDocument } from "@/lib/pdfSplit";
 
 type PdfDocumentLike = {
   numPages: number;
@@ -229,33 +229,13 @@ export function useSimplePdfUploader(): SimplePdfUploaderHook {
 
       try {
         const pdfBytes = await pdfFile.arrayBuffer();
-        const pdfDoc = await PDFDocument.load(pdfBytes);
-        const splitDocs: PDFDocument[] = [];
+        const partBytes = await splitPdfDocument(pdfBytes, splitPoints, shadedPages);
 
-        let startPage = 0;
-        for (const splitPoint of [...splitPoints, pdfDoc.getPageCount()]) {
-          const newDoc = await PDFDocument.create();
-
-          const pagesToCopy = Array.from(
-            { length: splitPoint - startPage },
-            (_, i) => startPage + i
-          ).filter((pageNum) => !shadedPages.includes(pageNum));
-
-          const copiedPages = await newDoc.copyPages(pdfDoc, pagesToCopy);
-          copiedPages.forEach((page) => newDoc.addPage(page));
-          splitDocs.push(newDoc);
-          startPage = splitPoint;
-        }
-
-        const splitPDFInfos: SplitPDFInfo[] = await Promise.all(
-          splitDocs.map(async (doc, index) => {
-            const pdfBytes = await doc.save();
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const file = new File([pdfBytes as any], `Split_${index + 1}.pdf`, { type: "application/pdf" });
-            const url = URL.createObjectURL(file);
-            return { name: `Split_${index + 1}.pdf`, url };
-          })
-        );
+        const splitPDFInfos: SplitPDFInfo[] = partBytes.map((bytes, index) => {
+          const file = new File([new Uint8Array(bytes)], `Split_${index + 1}.pdf`, { type: "application/pdf" });
+          const url = URL.createObjectURL(file);
+          return { name: `Split_${index + 1}.pdf`, url };
+        });
 
         // Revoke previous result URLs on re-process before replacing.
         // revokeObjectURL() is idempotent, so React StrictMode's double-invoke is safe.
