@@ -1,6 +1,23 @@
+# dependencies / build output
 node_modules
 .next
+out
+
+# env — this client-side app needs no env vars, ignore all
 .env
-folders
+.env.*
+
+# local data — never commit databases
 data
+folders
 *.db
+*.sqlite
+*.sqlite3
+
+# build artifacts
+*.tsbuildinfo
+
+# backups / editor / OS noise
+*.bak
+.DS_Store
+**/.DS_Store
