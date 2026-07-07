@@ -23,6 +23,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Progress } from "@/components/ui/progress";
 import {
   Scissors,
   Plus,
@@ -52,10 +53,12 @@ export const PdfUploader: React.FC = () => {
   const {
     fileInfo,
     thumbnails,
+    isGeneratingThumbnails,
+    thumbnailProgress,
     handleFileChange,
+    loadFile,
     splitPDF,
     splitPDFs,
-    modifiedPDF,
     clearAll,
   }: SimplePdfUploaderHook = useSimplePdfUploader();
   const [splitPoints, setSplitPoints] = useState<number[]>([]);
@@ -63,11 +66,12 @@ export const PdfUploader: React.FC = () => {
   const [thumbnailSize, setThumbnailSize] = useState(2); // 1-4 scale
   const [isDragging, setIsDragging] = useState(false);
   const [isZipDownloaded, setIsZipDownloaded] = useState(false);
+  const [downloadedParts, setDownloadedParts] = useState<Set<number>>(new Set());
   const [partNames, setPartNames] = useState<{ [key: number]: string }>({});
 
   // Rename state
   const [isRenameDialogOpen, setIsRenameDialogOpen] = useState(false);
-  const [renamingPartIndex, setRenamingPartIndex] = useState<number | null>(null);
+  const [renamingPartKey, setRenamingPartKey] = useState<number | null>(null); // partKey = the part's start page
   const [newPartName, setNewPartName] = useState("");
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -114,12 +118,19 @@ export const PdfUploader: React.FC = () => {
     return colors[sectionIndex % colors.length];
   };
 
-  const getPartName = (pageNumber: number) => {
-    const allSplitPoints = [1, ...splitPoints, thumbnails.length + 1].sort(
-      (a, b) => a - b
-    );
-    const partIndex = allSplitPoints.findIndex((sp) => pageNumber < sp);
-    return `part${partIndex}`;
+  // A part's identity is its START PAGE — stable when splits are added/removed
+  // around it. The positional index is only used for the default "Part N" label.
+  const getPartInfo = (pageNumber: number): { startPage: number; partIndex: number } => {
+    const starts = [1, ...splitPoints].sort((a, b) => a - b);
+    let startPage = 1;
+    let partIndex = 1;
+    for (let i = 0; i < starts.length; i++) {
+      if (starts[i] <= pageNumber) {
+        startPage = starts[i];
+        partIndex = i + 1;
+      }
+    }
+    return { startPage, partIndex };
   };
 
   const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
@@ -144,28 +155,15 @@ export const PdfUploader: React.FC = () => {
     e.stopPropagation();
     setIsDragging(false);
 
-    const files = e.dataTransfer.files;
-    if (files && files.length > 0) {
-      handleFileChange({
-        target: { files },
-      } as unknown as React.ChangeEvent<HTMLInputElement>);
-    }
+    const file = e.dataTransfer.files?.[0];
+    if (file) loadFile(file);
   };
-
-  const resetButtonStyles = useCallback(() => {
-    const buttons = document.querySelectorAll(".download-button");
-    buttons.forEach((button) => {
-      button.classList.remove("bg-gray-800", "text-white");
-      button.classList.add("bg-gray-200", "text-black", "hover:bg-gray-300");
-    });
-    setIsZipDownloaded(false);
-  }, []);
 
   const handleSplitPDF = async () => {
     const modifiedSplitPoints = splitPoints.map((p) => p - 1);
     const modifiedShadedPages = shadedPages.map((p) => p - 1);
     await splitPDF(modifiedSplitPoints, modifiedShadedPages);
-    resetButtonStyles();
+    setDownloadedParts(new Set());
   };
 
   const getPartStatus = useMemo(() => {
@@ -179,7 +177,7 @@ export const PdfUploader: React.FC = () => {
         (p) => p >= startPage && p <= endPage
       ).length;
       return {
-        name: partNames[index + 1] || `Part ${index + 1}`,
+        name: partNames[startPage] || `Part ${index + 1}`,
         pageCount,
         deletions,
       };
@@ -190,13 +188,13 @@ export const PdfUploader: React.FC = () => {
     const zip = new JSZip();
     const folder = zip.folder("split_pdfs");
     if (folder) {
-      for (const pdf of splitPDFs) {
-        const response = await fetch(pdf.url);
+      const starts = [1, ...splitPoints].sort((a, b) => a - b);
+      for (let i = 0; i < splitPDFs.length; i++) {
+        const response = await fetch(splitPDFs[i].url);
         const blob = await response.blob();
-        const partIndex = splitPDFs.indexOf(pdf) + 1;
-        const partName = partNames[partIndex]
-          ? ` - ${partNames[partIndex]}`
-          : "";
+        const partIndex = i + 1;
+        const customName = partNames[starts[i]];
+        const partName = customName ? ` - ${customName}` : "";
         folder.file(`Part ${partIndex}${partName}.pdf`, blob);
       }
       const content = await zip.generateAsync({ type: "blob" });
@@ -222,34 +220,44 @@ export const PdfUploader: React.FC = () => {
     ) as HTMLInputElement | null;
     if (input) input.value = "";
     if (scrollContainerRef.current) scrollContainerRef.current.scrollTop = 0;
-    resetButtonStyles();
+    setDownloadedParts(new Set());
     setIsDragging(false);
-  }, [clearAll, resetButtonStyles]);
+  }, [clearAll]);
 
-  const handlePartNameChange = (index: number, name: string) => {
+  const handlePartNameChange = (partKey: number, name: string) => {
     setPartNames((prev) => ({
       ...prev,
-      [index]: name,
+      [partKey]: name,
     }));
   };
 
-  const openRenameDialog = (index: number, currentName: string) => {
-    setRenamingPartIndex(index);
+  const openRenameDialog = (partKey: number, currentName: string) => {
+    setRenamingPartKey(partKey);
     setNewPartName(currentName);
     setIsRenameDialogOpen(true);
   };
 
   const savePartName = () => {
-    if (renamingPartIndex !== null && newPartName.trim() !== "") {
-      handlePartNameChange(renamingPartIndex, newPartName.trim());
+    if (renamingPartKey !== null && newPartName.trim() !== "") {
+      handlePartNameChange(renamingPartKey, newPartName.trim());
       setIsRenameDialogOpen(false);
-      setRenamingPartIndex(null);
+      setRenamingPartKey(null);
       setNewPartName("");
     }
   };
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't hijack typing in the rename dialog (or any form field).
+      const t = e.target as HTMLElement | null;
+      if (
+        t?.tagName === "INPUT" ||
+        t?.tagName === "TEXTAREA" ||
+        t?.tagName === "SELECT" ||
+        t?.isContentEditable
+      ) {
+        return;
+      }
       if (e.key === "+" || e.key === "=") {
         increaseThumbnailSize();
       } else if (e.key === "-" || e.key === "_") {
@@ -340,6 +348,16 @@ export const PdfUploader: React.FC = () => {
         )}
       </div>
 
+      {isGeneratingThumbnails && (
+        <div className="mt-6 flex items-center gap-3">
+          <span className="text-sm text-gray-600 shrink-0">Rendering pages…</span>
+          <Progress value={thumbnailProgress} className="flex-1" />
+          <span className="text-sm font-medium text-gray-700 w-10 text-right tabular-nums">
+            {thumbnailProgress}%
+          </span>
+        </div>
+      )}
+
       {thumbnails.length > 0 && (
         <div className="mt-8 space-y-4">
           <div className="flex flex-col sm:flex-row justify-between items-center gap-4 p-4 bg-white rounded-lg border shadow-sm">
@@ -357,7 +375,7 @@ export const PdfUploader: React.FC = () => {
                 aria-label="Zoom Out">
                 <Minus size={16} />
               </Button>
-              <span className="text-sm font-medium w-12 text-center">{thumbnailSize * 25}%</span>
+              <span className="text-sm font-medium w-12 text-center">{thumbnailSize * 50}%</span>
               <Button
                 onClick={increaseThumbnailSize}
                 size="icon"
@@ -389,12 +407,12 @@ export const PdfUploader: React.FC = () => {
                 const pageNumber = index + 1;
                 const isShaded = shadedPages.includes(pageNumber);
                 const sectionColor = getSectionColor(pageNumber);
-                const partName = getPartName(pageNumber);
+                const { startPage: partStartPage, partIndex: currentPartIndex } =
+                  getPartInfo(pageNumber);
                 const isStartOfPortion =
                   pageNumber === 1 || splitPoints.includes(pageNumber);
 
-                const currentPartIndex = parseInt(partName.replace("part", ""));
-                const displayPartName = partNames[currentPartIndex] || partName.replace("part", "Part ");
+                const displayPartName = partNames[partStartPage] || `Part ${currentPartIndex}`;
 
                 return (
                   <div key={thumbnail.pageNumber} className="relative group">
@@ -421,7 +439,7 @@ export const PdfUploader: React.FC = () => {
                           onClick={(e) => {
                             if (isStartOfPortion) {
                               e.stopPropagation();
-                              openRenameDialog(currentPartIndex, displayPartName);
+                              openRenameDialog(partStartPage, displayPartName);
                             }
                           }}
                           disabled={!isStartOfPortion}
@@ -451,12 +469,21 @@ export const PdfUploader: React.FC = () => {
 
                     {index < thumbnails.length - 1 && (
                       <div
-                        className={`absolute top-1/2 -right-3 w-6 h-6 -mt-3 z-10 cursor-pointer transition-all duration-200 transform hover:scale-110
+                        role="button"
+                        tabIndex={0}
+                        aria-label={`Split at page ${pageNumber + 1}`}
+                        className={`absolute top-1/2 -right-3 w-6 h-6 -mt-3 z-10 cursor-pointer rounded-full transition-all duration-200 transform hover:scale-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500
                                     ${splitPoints.includes(pageNumber + 1)
                             ? "opacity-100"
-                            : "opacity-0 group-hover:opacity-100"
+                            : "opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
                           }`}
-                        onClick={() => toggleSplitPoint(pageNumber + 1)}>
+                        onClick={() => toggleSplitPoint(pageNumber + 1)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            toggleSplitPoint(pageNumber + 1);
+                          }
+                        }}>
                         <div className={`w-full h-full rounded-full flex items-center justify-center shadow-sm border ${splitPoints.includes(pageNumber + 1)
                             ? "bg-blue-500 border-blue-600 text-white"
                             : "bg-white border-gray-200 text-gray-400 hover:text-blue-500 hover:border-blue-500"
@@ -517,23 +544,27 @@ export const PdfUploader: React.FC = () => {
           <div className="flex flex-wrap gap-3">
             {splitPDFs.map((pdf, index) => {
               const partIndex = index + 1;
-              const partName = partNames[partIndex]
-                ? ` - ${partNames[partIndex]}`
-                : "";
-              const displayName = partNames[partIndex]
-                ? `${partNames[partIndex].substring(0, 20)}`
+              const starts = [1, ...splitPoints].sort((a, b) => a - b);
+              const customName = partNames[starts[index]];
+              const partName = customName ? ` - ${customName}` : "";
+              const displayName = customName
+                ? `${customName.substring(0, 20)}`
                 : `Part ${partIndex}`;
               const fileName = `Part ${partIndex}${partName}.pdf`;
 
+              const isDownloaded = downloadedParts.has(index);
               return (
                 <Button
                   key={index}
                   variant="outline"
-                  className="bg-white hover:bg-green-100 border-green-200 text-green-800 download-button"
-                  onClick={(e) => {
-                    e.currentTarget.classList.add("bg-green-600", "text-white", "border-green-600");
-                    e.currentTarget.classList.remove("bg-white", "text-green-800");
+                  className={
+                    isDownloaded
+                      ? "bg-green-600 text-white border-green-600"
+                      : "bg-white hover:bg-green-100 border-green-200 text-green-800"
+                  }
+                  onClick={() => {
                     handleDownload(pdf.url, fileName);
+                    setDownloadedParts((prev) => new Set(prev).add(index));
                   }}>
                   <Download className="mr-2 h-4 w-4" />
                   {displayName}
@@ -551,23 +582,6 @@ export const PdfUploader: React.FC = () => {
               Download All (ZIP)
             </Button>
           </div>
-        </div>
-      )}
-
-      {modifiedPDF && (
-        <div className="mt-8 bg-blue-50 rounded-xl border border-blue-100 p-6 flex justify-between items-center">
-          <div>
-            <h3 className="text-lg font-semibold text-blue-900">Modified PDF Ready</h3>
-            <p className="text-sm text-blue-700">Your processed file is ready to save.</p>
-          </div>
-          <Button
-            size="lg"
-            className="bg-blue-600 hover:bg-blue-700 text-white"
-            onClick={() => handleDownload(modifiedPDF.url, modifiedPDF.name)}
-          >
-            <Download className="mr-2 h-4 w-4" />
-            Download PDF
-          </Button>
         </div>
       )}
 
