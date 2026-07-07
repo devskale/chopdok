@@ -55,7 +55,9 @@ const ensurePdfjs = async (): Promise<PdfjsLike | null> => {
   };
   if (!isPdfjs(candidate)) return null;
   const pdfjs = candidate;
-  pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
+  // Local worker (copied from the installed pdfjs-dist) — no CDN runtime dep,
+  // version-matched, and honours the "local processing only" claim.
+  pdfjs.GlobalWorkerOptions.workerSrc = "/chopdok/pdf.worker.min.js";
   _pdfjs = pdfjs;
   return _pdfjs;
 };
