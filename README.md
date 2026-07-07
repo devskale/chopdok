@@ -1,41 +1,90 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ChopDok
 
-## Getting Started
+Painless PDF chopping — split, delete, and rename pages **entirely in your browser**. Free, no uploads, no ads, no data collection.
 
-First, run the development server:
+Live: **https://www.skale.dev/chopdok**
+
+## Why
+
+Most "PDF split" tools upload your documents to a server. ChopDok does all
+processing client-side with [pdf.js](https://github.com/mozilla/pdf.js) +
+[pdf-lib](https://github.com/Hopding/pdf-lib). Your files never leave the
+browser — not even the pdf.js worker (it's bundled locally, not loaded from a CDN).
+
+## Features
+
+- 📑 Split a PDF at any page boundary into multiple parts
+- 🗑️ Delete individual pages (shade them out before processing)
+- ✏️ Rename each part (labels stay anchored to their section when splits move)
+- 📦 Download parts individually or as a ZIP
+- 🔍 Zoomable page preview
+- 🔒 100% client-side — nothing is uploaded
+
+## Tech
+
+Next.js 14 (App Router) · React 18 · TypeScript · Tailwind · shadcn/ui ·
+pdfjs-dist (render) · pdf-lib (split/delete) · JSZip · Vitest
+
+## Develop
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+pnpm install
+pnpm dev          # → http://localhost:3000/chopdok
 ```
 
-install dependencies
+The app is mounted under the `/chopdok` base path (see `lib/basePath.ts` /
+`next.config.mjs`). To run at the domain root locally instead:
+
+```bash
+NEXT_PUBLIC_BASE_PATH= pnpm dev   # → http://localhost:3000
 ```
-npm install @radix-ui/react-label @radix-ui/react-slot class-variance-authority clsx lucide-react tailwindcss-animate tailwind-merge
+
+### Scripts
+
+| Command | What it does |
+| --- | --- |
+| `pnpm dev` | Start the dev server |
+| `pnpm build` | Production build |
+| `pnpm start` | Run the production build |
+| `pnpm lint` | ESLint |
+| `pnpm test` | Vitest (pure logic + pdf-lib integration + hook guard) |
+
+## Architecture
+
+```
+app/
+  page.tsx            # landing page (header, footer, mounts <PdfUploader/>)
+  disclaimer/page.tsx # privacy/disclaimer page
+  layout.tsx          # root layout, fonts, <Toaster/>
+components/
+  PdfUploader.tsx     # the whole UI: dropzone, grid, summary, downloads, rename dialog
+  ui/                 # shadcn/ui primitives (button, dialog, progress, toast, …)
+lib/
+  simplePdfUploader.ts  # the hook: file loading, thumbnails, splitting (state + side-effects)
+  parts.ts              # pure: getPartInfo, computePartRanges  (unit-tested)
+  pdfSplit.ts           # pdf-lib: splitPdfDocument             (integration-tested)
+  basePath.ts           # BASE_PATH constant
+hooks/
+  use-toast.ts          # shadcn store-based toast
+public/
+  pdf.worker.min.js     # pdf.js worker (served locally; copy of pdfjs-dist/build/…)
+  choppr.png            # icon/logo
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+The pure, bug-prone logic (part identity, split math) lives in `lib/parts.ts` and
+`lib/pdfSplit.ts` so it's unit-testable independently of the browser/PDF stack.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+> When upgrading `pdfjs-dist`, re-copy the worker:
+> `cp node_modules/pdfjs-dist/build/pdf.worker.min.js public/pdf.worker.min.js`
+> (and note v4+ ships a `.mjs` module worker — see `issues.md`).
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Deploy
 
-## Learn More
+Served at `skale.dev/chopdok` by the **skalego** project, which reverse-proxies
+this app (mounted under `basePath: '/chopdok'`). See [`DEPLOYMENT.md`](./DEPLOYMENT.md).
+CI (`.github/workflows/ci.yml`) runs `pnpm test` + `pnpm build` on push/PR.
 
-To learn more about Next.js, take a look at the following resources:
+## Disclaimer
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+This software is provided "as is", without warranty. Always keep a backup of
+your original documents. See the in-app [disclaimer](./app/disclaimer/page.tsx).
