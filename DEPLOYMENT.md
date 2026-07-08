@@ -49,6 +49,12 @@ prefix (`href="/disclaimer"`, `href="/"`) — `basePath` adds it back.
 { "source": "/chopdok/:path*", "destination": "https://chopdok.vercel.app/chopdok/:path*" }
 ```
 
+## Package manager
+This repo uses **npm** (`package-lock.json`). Vercel auto-detects npm — **no
+`packageManager` field, no env var, no special config needed.** (The old
+pnpm-11 `ERR_PNPM_IGNORED_BUILDS` / `ENABLE_EXPERIMENTAL_COREPACK` pain is
+gone.) Build scripts (sharp, unrs-resolver) run automatically under npm.
+
 ## Deploy order
 1. Push **this** repo (`basePath` + bare-root redirect + icon prefixes) → wait Ready.
 2. Push **skalego** (rewrite points at the app).

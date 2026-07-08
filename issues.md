@@ -38,7 +38,7 @@ Full upgrade to latest everywhere, switched from pnpm → **npm** (kills the old
 
 ## 🔲 Open — priority order
 
-- [ ] **Vercel deploy verification** — push to `main`, confirm the Vercel build succeeds (npm is auto-detected, no env var needed now). Smoke test: open a PDF at `skale.dev/chopdok` → thumbnails render (worker runs) + split works.
+- [x] **Vercel deploy verified** — pushed to `main`, Vercel built clean with Next 16 + Turbopack + npm. Live at `skale.dev/chopdok`: app `200`, Turbopack chunk serves, ESM module worker (`pdf.worker.min.mjs`) `200` as `application/javascript`. (Worker flip `.js→.mjs` + new chunk hash confirmed the new build.)
 - [ ] **Tests** — vitest (**17 tests** over 4 files: `getPartInfo`, `computePartRanges`, `splitPdfDocument`, `useSimplePdfUploader.loadFile` non-PDF guard, `<PdfUploader/>` render smoke). Still uncovered: the hook's pdf.js success path (needs pdf.js + canvas mocking) and interactive component tests.
 - [ ] **(optional · non-security)** Old commit SHAs (`32d674a`, `df77c98`) still served via read-only `refs/pull/1/head` (a closed bot PR GitHub won't let users delete). Optional tidy-up only. Options: GitHub Support (https://support.github.com/contact → *Remove cached views*), or delete + recreate the repo (needs `delete_repo` scope).
 - [x] **`basePath`** — centralised the `/chopdok` prefix into `lib/basePath.ts` (`BASE_PATH`); default unchanged (production-safe), overridable via `NEXT_PUBLIC_BASE_PATH=`.
