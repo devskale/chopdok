@@ -36,18 +36,21 @@ import {
   Eraser,
   FileText,
   Edit2,
+  Check,
+  Sparkles,
 } from "lucide-react";
 import JSZip from "jszip";
 
-const colors = [
-  "bg-red-100",
-  "bg-blue-100",
-  "bg-green-100",
-  "bg-yellow-100",
-  "bg-purple-100",
-  "bg-pink-100",
-  "bg-indigo-100",
-  "bg-gray-100",
+// Subtle section tints — a faint wash, no rings/borders (avoids card-in-card).
+const sectionTints = [
+  "bg-primary/10",
+  "bg-cyan-500/10",
+  "bg-fuchsia-500/10",
+  "bg-emerald-500/10",
+  "bg-amber-500/10",
+  "bg-rose-500/10",
+  "bg-indigo-500/10",
+  "bg-teal-500/10",
 ];
 
 export const PdfUploader: React.FC = () => {
@@ -72,7 +75,7 @@ export const PdfUploader: React.FC = () => {
 
   // Rename state
   const [isRenameDialogOpen, setIsRenameDialogOpen] = useState(false);
-  const [renamingPartKey, setRenamingPartKey] = useState<number | null>(null); // partKey = the part's start page
+  const [renamingPartKey, setRenamingPartKey] = useState<number | null>(null);
   const [newPartName, setNewPartName] = useState("");
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -116,12 +119,8 @@ export const PdfUploader: React.FC = () => {
       [1, ...splitPoints, thumbnails.length + 1].findIndex(
         (sp) => pageNumber < sp
       ) - 1;
-    return colors[sectionIndex % colors.length];
+    return sectionTints[sectionIndex % sectionTints.length];
   };
-
-  // A part's identity is its START PAGE — stable when splits are added/removed
-  // around it. The positional index is only used for the default "Part N" label.
-  // (Logic lives in lib/parts.ts so it's unit-tested.)
 
   const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -238,7 +237,6 @@ export const PdfUploader: React.FC = () => {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't hijack typing in the rename dialog (or any form field).
       const t = e.target as HTMLElement | null;
       if (
         t?.tagName === "INPUT" ||
@@ -269,13 +267,14 @@ export const PdfUploader: React.FC = () => {
   };
 
   return (
-    <div className="container mx-auto p-4 max-w-5xl">
+    <div className="container mx-auto p-4 sm:p-6 max-w-5xl">
+      {/* Dropzone */}
       <div
-        className={`flex items-center justify-center transition-all duration-200 ease-in-out border-2 border-dashed rounded-xl ${fileInfo
-            ? "p-4 flex-row gap-6 border-gray-200 bg-gray-50/50"
-            : `flex-col p-10 ${isDragging
-              ? "border-primary bg-primary/5 scale-[1.02]"
-              : "border-gray-300 hover:border-primary/50 hover:bg-gray-50"
+        className={`relative flex items-center justify-center transition-all duration-300 ease-out rounded-2xl border-2 border-dashed overflow-hidden ${fileInfo
+            ? "p-5 flex-row gap-6 border-border/70 bg-secondary/30"
+            : `flex-col p-12 sm:p-16 ${isDragging
+                ? "border-primary bg-primary/10 scale-[1.01] glow-primary"
+                : "border-border/60 hover:border-primary/50 hover:bg-secondary/20"
             }`
           }`}
         onDragEnter={handleDragEnter}
@@ -284,16 +283,16 @@ export const PdfUploader: React.FC = () => {
         onDrop={handleDrop}>
 
         {!fileInfo ? (
-          <div className="flex flex-col items-center text-center space-y-4">
-            <div className="p-4 bg-gray-100 rounded-full">
-              <Upload className="text-gray-500 w-8 h-8" />
+          <div className="flex flex-col items-center text-center gap-5">
+            <div className={`grid place-items-center w-16 h-16 rounded-2xl transition-colors ${isDragging ? "bg-primary/20 text-primary" : "bg-secondary text-muted-foreground"}`}>
+              <Upload className="w-7 h-7" strokeWidth={1.75} />
             </div>
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <label htmlFor="file-upload" className="cursor-pointer block" aria-label="Select PDF file">
-                <span className="font-semibold text-lg text-gray-900">
+                <span className="font-semibold text-lg text-foreground">
                   Click to upload
                 </span>
-                <span className="text-gray-500"> or drag and drop</span>
+                <span className="text-muted-foreground"> or drag &amp; drop</span>
               </label>
               <Input
                 id="file-upload"
@@ -303,19 +302,19 @@ export const PdfUploader: React.FC = () => {
                 className="hidden"
                 aria-label="Upload PDF"
               />
-              <p className="text-sm text-gray-500">PDF files only</p>
+              <p className="text-sm text-muted-foreground/80">PDF files only · stays on your device</p>
             </div>
           </div>
         ) : (
           <div className="flex items-center justify-between w-full">
             <div className="flex items-center gap-4">
-              <div className="p-3 bg-red-100 rounded-lg">
-                <FileText className="text-red-600 w-6 h-6" />
+              <div className="grid place-items-center p-3 rounded-xl bg-rose-500/15 ring-1 ring-rose-500/25">
+                <FileText className="text-rose-400 w-6 h-6" strokeWidth={1.75} />
               </div>
-              <div>
-                <p className="font-semibold text-gray-900">{fileInfo.name}</p>
-                <p className="text-sm text-gray-500">
-                  {fileInfo.size} MB • {fileInfo.pageCount} pages
+              <div className="min-w-0">
+                <p className="font-semibold text-foreground truncate">{fileInfo.name}</p>
+                <p className="text-sm text-muted-foreground font-mono">
+                  {fileInfo.size} MB · {fileInfo.pageCount} pages
                 </p>
               </div>
             </div>
@@ -340,9 +339,9 @@ export const PdfUploader: React.FC = () => {
 
       {isGeneratingThumbnails && (
         <div className="mt-6 flex items-center gap-3">
-          <span className="text-sm text-gray-600 shrink-0">Rendering pages…</span>
+          <span className="text-sm text-muted-foreground shrink-0">Rendering pages…</span>
           <Progress value={thumbnailProgress} className="flex-1" />
-          <span className="text-sm font-medium text-gray-700 w-10 text-right tabular-nums">
+          <span className="text-sm font-medium tabular-nums w-10 text-right font-mono">
             {thumbnailProgress}%
           </span>
         </div>
@@ -350,12 +349,13 @@ export const PdfUploader: React.FC = () => {
 
       {thumbnails.length > 0 && (
         <div className="mt-8 space-y-4">
-          <div className="flex flex-col sm:flex-row justify-between items-center gap-4 p-4 bg-white rounded-lg border shadow-sm">
-            <h2 className="text-lg font-semibold flex items-center gap-2">
-              <span className="w-2 h-6 bg-primary rounded-full"></span>
+          {/* Toolbar — flat row, no card (avoids stacking surfaces) */}
+          <div className="flex flex-col sm:flex-row justify-between items-center gap-4 px-1">
+            <h2 className="text-lg font-semibold flex items-center gap-2.5">
+              <span className="inline-block w-1 h-5 rounded-full bg-gradient-to-b from-primary to-fuchsia-400" />
               Page Preview
             </h2>
-            <div className="flex items-center gap-2 bg-gray-100 p-1 rounded-lg">
+            <div className="flex items-center gap-1.5 bg-secondary/60 border border-border/60 p-1 rounded-xl">
               <Button
                 onClick={decreaseThumbnailSize}
                 size="icon"
@@ -365,7 +365,7 @@ export const PdfUploader: React.FC = () => {
                 aria-label="Zoom Out">
                 <Minus size={16} />
               </Button>
-              <span className="text-sm font-medium w-12 text-center">{thumbnailSize * 50}%</span>
+              <span className="text-sm font-medium w-12 text-center font-mono">{thumbnailSize * 50}%</span>
               <Button
                 onClick={increaseThumbnailSize}
                 size="icon"
@@ -375,7 +375,7 @@ export const PdfUploader: React.FC = () => {
                 aria-label="Zoom In">
                 <Plus size={16} />
               </Button>
-              <div className="w-px h-4 bg-gray-300 mx-1"></div>
+              <div className="w-px h-4 bg-border mx-1" />
               <Button
                 onClick={handleClearAll}
                 size="sm"
@@ -383,16 +383,17 @@ export const PdfUploader: React.FC = () => {
                 className="h-8 px-3 text-xs"
                 title="Clear all"
                 aria-label="Clear all">
-                <Eraser size={14} className="mr-2" />
+                <Eraser size={14} className="mr-1.5" />
                 Clear
               </Button>
             </div>
           </div>
 
+          {/* Grid — one soft inset surface, no extra border nesting */}
           <div
             ref={scrollContainerRef}
-            className="overflow-y-auto max-h-[600px] p-4 bg-gray-50 rounded-xl border">
-            <div className={`grid ${gridCols} gap-6`}>
+            className="overflow-y-auto max-h-[600px] p-4 rounded-2xl bg-background/30">
+            <div className={`grid ${gridCols} gap-5`}>
               {thumbnails.map((thumbnail, index) => {
                 const pageNumber = index + 1;
                 const isShaded = shadedPages.includes(pageNumber);
@@ -407,24 +408,26 @@ export const PdfUploader: React.FC = () => {
                 return (
                   <div key={thumbnail.pageNumber} className="relative group">
                     <div
-                      className={`relative rounded-lg overflow-hidden shadow-sm transition-all duration-200 hover:shadow-md ${sectionColor} ${isShaded ? "opacity-50 grayscale" : ""
+                      className={`relative rounded-xl overflow-hidden transition-all duration-200 hover:-translate-y-0.5 hover:ring-1 hover:ring-primary/40 ${sectionColor} ${isShaded ? "opacity-40 grayscale" : ""
                         }`}>
-                      <div className="aspect-[1/1.4] relative">
+                      <div className="aspect-[1/1.4] relative bg-background/60">
                         <Image
                           src={thumbnail.thumbnailUrl}
                           alt={`Page ${pageNumber}`}
                           fill
+                          sizes="20vw"
                           className="object-contain p-2"
                         />
                       </div>
 
-                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors" />
+                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors pointer-events-none" />
 
-                      <div className="absolute bottom-0 left-0 right-0 bg-white/90 backdrop-blur-sm p-2 border-t flex justify-between items-center">
+                      {/* Label bar */}
+                      <div className="absolute bottom-0 left-0 right-0 glass border-t border-white/10 p-2 flex justify-between items-center">
                         <button
                           className={`text-xs font-medium px-1.5 py-0.5 rounded flex items-center gap-1 max-w-[70%] transition-colors ${isStartOfPortion
-                              ? "cursor-pointer bg-gray-100 text-gray-900 hover:bg-blue-100 hover:text-blue-700"
-                              : "bg-transparent text-gray-500 cursor-default"
+                              ? "cursor-pointer hover:bg-primary/20 hover:text-primary"
+                              : "cursor-default text-muted-foreground"
                             }`}
                           onClick={(e) => {
                             if (isStartOfPortion) {
@@ -436,18 +439,18 @@ export const PdfUploader: React.FC = () => {
                           aria-label={isStartOfPortion ? "Rename part" : "Section name"}
                         >
                           <span className="truncate">{displayPartName}</span>
-                          {isStartOfPortion && <Edit2 size={10} className="opacity-50" />}
+                          {isStartOfPortion && <Edit2 size={10} className="opacity-50 shrink-0" />}
                         </button>
-                        <span className="text-xs text-gray-500 font-mono">{pageNumber}</span>
+                        <span className="text-xs text-muted-foreground font-mono">{pageNumber}</span>
                       </div>
 
+                      {/* Remove / restore */}
                       <Button
-                        className={`
-                          absolute top-2 left-2 h-8 w-8 rounded-full p-0 shadow-sm transition-all duration-200
+                        className={`absolute top-2 left-2 h-8 w-8 rounded-full p-0 transition-all duration-200
                           ${isShaded
-                            ? "bg-gray-800 text-white hover:bg-gray-700"
-                            : "bg-white text-gray-700 hover:bg-red-50 hover:text-red-600 opacity-0 group-hover:opacity-100"
-                          } 
+                            ? "bg-foreground text-background hover:bg-foreground/80"
+                            : "glass border border-white/15 text-foreground hover:bg-destructive hover:text-destructive-foreground hover:border-destructive opacity-0 group-hover:opacity-100"
+                          }
                         `}
                         onClick={() => toggleShadedPage(pageNumber)}
                         title={isShaded ? "Restore page" : "Remove page"}
@@ -457,12 +460,13 @@ export const PdfUploader: React.FC = () => {
                       </Button>
                     </div>
 
+                    {/* Split handle */}
                     {index < thumbnails.length - 1 && (
                       <div
                         role="button"
                         tabIndex={0}
                         aria-label={`Split at page ${pageNumber + 1}`}
-                        className={`absolute top-1/2 -right-3 w-6 h-6 -mt-3 z-10 cursor-pointer rounded-full transition-all duration-200 transform hover:scale-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500
+                        className={`absolute top-1/2 -right-3 w-6 h-6 -mt-3 z-10 cursor-pointer rounded-full transition-all duration-200 hover:scale-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary
                                     ${splitPoints.includes(pageNumber + 1)
                             ? "opacity-100"
                             : "opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
@@ -474,11 +478,11 @@ export const PdfUploader: React.FC = () => {
                             toggleSplitPoint(pageNumber + 1);
                           }
                         }}>
-                        <div className={`w-full h-full rounded-full flex items-center justify-center shadow-sm border ${splitPoints.includes(pageNumber + 1)
-                            ? "bg-blue-500 border-blue-600 text-white"
-                            : "bg-white border-gray-200 text-gray-400 hover:text-blue-500 hover:border-blue-500"
+                        <div className={`w-full h-full rounded-full grid place-items-center border transition-colors ${splitPoints.includes(pageNumber + 1)
+                            ? "bg-primary border-primary text-primary-foreground glow-primary"
+                            : "glass border-border text-muted-foreground hover:text-primary hover:border-primary"
                           }`}>
-                          <Scissors size={14} />
+                          <Scissors size={13} />
                         </div>
                       </div>
                     )}
@@ -490,33 +494,37 @@ export const PdfUploader: React.FC = () => {
         </div>
       )}
 
+      {/* Summary */}
       {(splitPoints.length > 0 || shadedPages.length > 0) && (
-        <div className="mt-8 bg-white rounded-xl border shadow-sm overflow-hidden">
-          <div className="p-6 border-b bg-gray-50/50">
-            <h3 className="text-lg font-semibold">Summary & Actions</h3>
+        <div className="mt-8 rounded-2xl border border-border/60 glass overflow-hidden">
+          <div className="p-6 border-b border-border/60">
+            <h3 className="text-lg font-semibold flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-primary" />
+              Summary &amp; Actions
+            </h3>
           </div>
           <div className="p-6 space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="divide-y divide-border/60">
               {getPartStatus.map((status, index) => (
-                <div key={index} className="bg-gray-50 p-4 rounded-lg border">
-                  <div className="flex justify-between items-start mb-2">
-                    <span className="font-medium text-gray-900">{status.name}</span>
-                    <span className="text-xs bg-white px-2 py-1 rounded border text-gray-500">
-                      {status.pageCount} pgs
-                    </span>
+                <div key={index} className="flex items-center justify-between py-3 first:pt-0 last:pb-0 gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className="font-medium text-foreground truncate">{status.name}</span>
+                    {status.deletions > 0 && (
+                      <span className="text-xs text-destructive flex items-center gap-1 shrink-0">
+                        <Eraser size={12} />
+                        {status.deletions}
+                      </span>
+                    )}
                   </div>
-                  {status.deletions > 0 && (
-                    <div className="text-xs text-red-600 flex items-center gap-1">
-                      <Eraser size={12} />
-                      {status.deletions} removed
-                    </div>
-                  )}
+                  <span className="text-xs bg-secondary/60 border border-border/60 px-2 py-1 rounded-md text-muted-foreground font-mono shrink-0">
+                    {status.pageCount} pgs
+                  </span>
                 </div>
               ))}
             </div>
 
-            <div className="flex justify-end pt-4 border-t">
-              <Button onClick={handleSplitPDF} size="lg" className="bg-primary hover:bg-primary/90">
+            <div className="flex justify-end pt-4 border-t border-border/60">
+              <Button onClick={handleSplitPDF} size="lg" className="glow-primary">
                 <Scissors className="mr-2 h-4 w-4" />
                 Process PDF
               </Button>
@@ -525,10 +533,13 @@ export const PdfUploader: React.FC = () => {
         </div>
       )}
 
+      {/* Downloads */}
       {splitPDFs.length > 0 && (
-        <div className="mt-8 bg-green-50 rounded-xl border border-green-100 p-6">
-          <h3 className="text-lg font-semibold text-green-900 mb-4 flex items-center gap-2">
-            <Download className="h-5 w-5" />
+        <div className="mt-8 rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-6">
+          <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+            <span className="grid place-items-center w-7 h-7 rounded-lg bg-emerald-500/20 text-emerald-400">
+              <Download className="h-4 w-4" />
+            </span>
             Ready for Download
           </h3>
           <div className="flex flex-wrap gap-3">
@@ -547,26 +558,22 @@ export const PdfUploader: React.FC = () => {
                 <Button
                   key={index}
                   variant="outline"
-                  className={
-                    isDownloaded
-                      ? "bg-green-600 text-white border-green-600"
-                      : "bg-white hover:bg-green-100 border-green-200 text-green-800"
+                  className={isDownloaded
+                    ? "border-emerald-500/50 bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/20"
+                    : "border-border/60 bg-background/40 hover:bg-emerald-500/15 hover:border-emerald-500/40 hover:text-emerald-300"
                   }
                   onClick={() => {
                     handleDownload(pdf.url, fileName);
                     setDownloadedParts((prev) => new Set(prev).add(index));
                   }}>
-                  <Download className="mr-2 h-4 w-4" />
+                  {isDownloaded ? <Check className="mr-2 h-4 w-4" /> : <Download className="mr-2 h-4 w-4" />}
                   {displayName}
                 </Button>
               );
             })}
             <Button
               onClick={handleDownloadZip}
-              className={`ml-auto ${isZipDownloaded
-                  ? "bg-gray-800"
-                  : "bg-green-600 hover:bg-green-700"
-                }`}
+              className={`ml-auto ${isZipDownloaded ? "" : "glow-primary"}`}
             >
               <Archive className="mr-2 h-4 w-4" />
               Download All (ZIP)
@@ -575,6 +582,7 @@ export const PdfUploader: React.FC = () => {
         </div>
       )}
 
+      {/* Rename dialog */}
       <Dialog open={isRenameDialogOpen} onOpenChange={setIsRenameDialogOpen}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
