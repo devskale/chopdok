@@ -1,7 +1,0 @@
-# pnpm 11 reads build-script policy from here (not package.json).
-# canvas (pdf.js's optional Node-canvas dep) and unrs-resolver (eslint-import-resolver)
-# ship prebuilt binaries — approve their postinstall so pnpm fetches the prebuilts
-# instead of erroring with ERR_PNPM_IGNORED_BUILDS.
-onlyBuiltDependencies:
-  - canvas
-  - unrs-resolver
