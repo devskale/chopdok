@@ -1,0 +1,8 @@
+# pnpm 11 reads build-script approvals from here (it ignores the
+# `pnpm.onlyBuiltDependencies` field in package.json).
+# `allowBuilds` is the pnpm 11 key (renamed from `onlyBuiltDependencies`).
+#   - canvas: optional Node-canvas dep of pdfjs-dist (unused in browser build)
+#   - unrs-resolver: native binary for eslint's import resolver
+allowBuilds:
+  canvas: true
+  unrs-resolver: true
