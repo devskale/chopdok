@@ -21,3 +21,6 @@ folders
 *.bak
 .DS_Store
 **/.DS_Store
+
+# AI tooling / local-only plans & notes
+.kilo

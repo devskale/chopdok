@@ -27,8 +27,8 @@ type PdfPageLike = {
 
 type PdfjsLike = {
   version: string;
-  GlobalWorkerOptions: { workerSrc: string };
-  getDocument: (src: ArrayBuffer | Uint8Array | { data: ArrayBuffer }) => {
+  GlobalWorkerOptions: { workerPort?: Worker };
+  getDocument: (src: { data: ArrayBuffer | Uint8Array }) => {
     promise: PdfDocumentLike;
   };
 };
@@ -56,9 +56,12 @@ const ensurePdfjs = async (): Promise<PdfjsLike | null> => {
   };
   if (!isPdfjs(candidate)) return null;
   const pdfjs = candidate;
-  // Local worker (copied from the installed pdfjs-dist) — no CDN runtime dep,
-  // version-matched, and honours the "local processing only" claim.
-  pdfjs.GlobalWorkerOptions.workerSrc = `${BASE_PATH}/pdf.worker.min.js`;
+  // pdfjs v4+ uses an ESM worker that must be loaded as a module worker.
+  // We use workerPort instead of workerSrc to load the bundled .mjs worker.
+  pdfjs.GlobalWorkerOptions.workerPort = new Worker(
+    `${BASE_PATH}/pdf.worker.min.mjs`,
+    { type: "module" }
+  );
   _pdfjs = pdfjs;
   return _pdfjs;
 };
@@ -116,7 +119,7 @@ export function useSimplePdfUploader(): SimplePdfUploaderHook {
     setThumbnailProgress(0);
     try {
       const fileArrayBuffer = await file.arrayBuffer();
-      const pdf = await pdfjs.getDocument(fileArrayBuffer).promise;
+      const pdf = await pdfjs.getDocument({ data: new Uint8Array(fileArrayBuffer) }).promise;
       if (myToken !== renderTokenRef.current) return;
 
       const total = pdf.numPages;
@@ -184,7 +187,7 @@ export function useSimplePdfUploader(): SimplePdfUploaderHook {
 
       try {
         const fileArrayBuffer = await file.arrayBuffer();
-        const pdf = await pdfjs.getDocument(fileArrayBuffer).promise;
+        const pdf = await pdfjs.getDocument({ data: new Uint8Array(fileArrayBuffer) }).promise;
 
         setPdfFile(file);
         setFileInfo({

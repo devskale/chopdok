@@ -22,32 +22,32 @@ browser — not even the pdf.js worker (it's bundled locally, not loaded from a 
 
 ## Tech
 
-Next.js 14 (App Router) · React 18 · TypeScript · Tailwind · shadcn/ui ·
-pdfjs-dist (render) · pdf-lib (split/delete) · JSZip · Vitest
+Next.js 16 (App Router, Turbopack) · React 19 · TypeScript · Tailwind v4 · shadcn/ui ·
+pdfjs-dist v6 (render) · pdf-lib (split/delete) · JSZip · Vitest
 
 ## Develop
 
 ```bash
-pnpm install
-pnpm dev          # → http://localhost:3000/chopdok
+npm install
+npm run dev          # → http://localhost:3000/chopdok
 ```
 
 The app is mounted under the `/chopdok` base path (see `lib/basePath.ts` /
 `next.config.mjs`). To run at the domain root locally instead:
 
 ```bash
-NEXT_PUBLIC_BASE_PATH= pnpm dev   # → http://localhost:3000
+NEXT_PUBLIC_BASE_PATH= npm run dev   # → http://localhost:3000
 ```
 
 ### Scripts
 
 | Command | What it does |
 | --- | --- |
-| `pnpm dev` | Start the dev server |
-| `pnpm build` | Production build |
-| `pnpm start` | Run the production build |
-| `pnpm lint` | ESLint |
-| `pnpm test` | Vitest (pure logic + pdf-lib integration + hook guard) |
+| `npm run dev` | Start the dev server |
+| `npm run build` | Production build |
+| `npm start` | Run the production build |
+| `npm run lint` | ESLint (flat config) |
+| `npm test` | Vitest (pure logic + pdf-lib integration + hook guard) |
 
 ## Architecture
 
@@ -67,22 +67,21 @@ lib/
 hooks/
   use-toast.ts          # shadcn store-based toast
 public/
-  pdf.worker.min.js     # pdf.js worker (served locally; copy of pdfjs-dist/build/…)
+  pdf.worker.min.mjs   # pdf.js v4+ ESM module worker (served locally; copy of pdfjs-dist/build/…)
   choppr.png            # icon/logo
 ```
 
 The pure, bug-prone logic (part identity, split math) lives in `lib/parts.ts` and
 `lib/pdfSplit.ts` so it's unit-testable independently of the browser/PDF stack.
 
-> When upgrading `pdfjs-dist`, re-copy the worker:
-> `cp node_modules/pdfjs-dist/build/pdf.worker.min.js public/pdf.worker.min.js`
-> (and note v4+ ships a `.mjs` module worker — see `issues.md`).
+> When upgrading `pdfjs-dist`, re-copy the ESM module worker:
+> `cp node_modules/pdfjs-dist/build/pdf.worker.min.mjs public/pdf.worker.min.mjs`
 
 ## Deploy
 
 Served at `skale.dev/chopdok` by the **skalego** project, which reverse-proxies
 this app (mounted under `basePath: '/chopdok'`). See [`DEPLOYMENT.md`](./DEPLOYMENT.md).
-CI (`.github/workflows/ci.yml`) runs `pnpm test` + `pnpm build` on push/PR.
+CI (`.github/workflows/ci.yml`) runs `npm test` + `npm run build` on push/PR.
 
 ## Disclaimer
 
