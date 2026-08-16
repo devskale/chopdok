@@ -35,7 +35,6 @@ export const CropModal: React.FC<CropModalProps> = ({
 }) => {
   const [crop, setCrop] = useState<Crop>();
   const [keep, setKeep] = useState(false);
-  const [inspect, setInspect] = useState(false); // loupe mode
   const [loupe, setLoupe] = useState<{ x: number; y: number } | null>(null);
   const surfaceRef = useRef<HTMLDivElement | null>(null);
   const imgRef = useRef<HTMLImageElement | null>(null);
@@ -47,7 +46,6 @@ export const CropModal: React.FC<CropModalProps> = ({
     if (!open || !item) return;
     // schedule outside the render pass to avoid cascading renders
     const reset = () => {
-      setInspect(false);
       setLoupe(null);
     };
     const fit = () => {
@@ -99,8 +97,7 @@ export const CropModal: React.FC<CropModalProps> = ({
       r, // surface rect for loupe placement
     };
   };
-  const handleInspectMove = (e: React.PointerEvent) => {
-    if (!inspect) return;
+  const handleLoupeMove = (e: React.PointerEvent) => {
     const p = imagePoint(e);
     if (p.x < 0 || p.y < 0 || p.x > p.r.width || p.y > p.r.height) {
       setLoupe(null);
@@ -146,46 +143,36 @@ export const CropModal: React.FC<CropModalProps> = ({
             <div
               ref={surfaceRef}
               className="flex justify-center bg-background/60 rounded-none p-2 overflow-hidden relative"
-              onPointerMove={handleInspectMove}
+              onPointerMove={handleLoupeMove}
               onPointerLeave={() => setLoupe(null)}>
-              {fitted && !inspect && (
-                <ReactCrop
-                  crop={crop}
-                  onChange={(_, percent) => setCrop(percent)}
-                  keepSelection
-                >
-                  <Image
-                    src={item.thumbnailUrl}
-                    alt={item.label}
-                    width={fitted.w}
-                    height={fitted.h}
-                    unoptimized
-                    className="rounded-none"
-                    draggable={false}
-                    onLoad={(e) => onLoad(e.currentTarget as HTMLImageElement)}
-                  />
-                </ReactCrop>
-              )}
-              {fitted && inspect && (
+              {fitted && (
                 <div className="relative">
-                  <Image
-                    src={item.thumbnailUrl}
-                    alt={item.label}
-                    width={fitted.w}
-                    height={fitted.h}
-                    unoptimized
-                    className="rounded-none select-none"
-                    draggable={false}
-                  />
-                  {/* Loupe: 3x zoom at the cursor, circular, clipped */}
+                  <ReactCrop
+                    crop={crop}
+                    onChange={(_, percent) => setCrop(percent)}
+                    keepSelection
+                  >
+                    <Image
+                      src={item.thumbnailUrl}
+                      alt={item.label}
+                      width={fitted.w}
+                      height={fitted.h}
+                      unoptimized
+                      className="rounded-none"
+                      draggable={false}
+                      onLoad={(e) => onLoad(e.currentTarget as HTMLImageElement)}
+                    />
+                  </ReactCrop>
+                  {/* Loupe: 3x magnifier offset from the cursor (never covers
+                      what you inspect) — live during selection drags too. */}
                   {loupe && (
                     <div
-                      className="absolute rounded-full border-2 border-primary pointer-events-none shadow-2xl z-20 overflow-hidden"
+                      className="absolute rounded-full border-2 border-primary pointer-events-none shadow-2xl z-30 overflow-hidden"
                       style={{
                         width: 180,
                         height: 180,
-                        left: loupe.x - 90,
-                        top: loupe.y - 90,
+                        left: loupe.x + 24 + 180 > fitted.w ? loupe.x - 204 : loupe.x + 24,
+                        top: loupe.y - 204 < 0 ? loupe.y + 24 : loupe.y - 204,
                         backgroundImage: `url(${item.thumbnailUrl})`,
                         backgroundRepeat: "no-repeat",
                         backgroundSize: `${fitted.w * 3}px ${fitted.h * 3}px`,
@@ -199,36 +186,23 @@ export const CropModal: React.FC<CropModalProps> = ({
 
             <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground">
               <span className="font-mono">
-                {inspect
-                  ? "inspect · move over the page"
-                  : px
-                    ? `${px.w} × ${px.h} px`
-                    : "no selection"}
-                {!inspect && item.kind === "page" && " · cropped from preview resolution"}
+                {px ? `${px.w} × ${px.h} px` : "no selection"}
+                {item.kind === "page" && " · cropped from preview resolution"}
               </span>
               <div className="flex items-center gap-4">
-                <Button
-                  size="sm"
-                  variant={inspect ? "default" : "outline"}
-                  onClick={() => {
-                    setInspect(!inspect);
-                    setLoupe(null);
-                  }}
-                  title="Magnifier — inspect page details (page numbers etc.)">
-                  <ZoomIn size={14} className="mr-1.5" />
-                  {inspect ? "Inspecting — back to crop" : "Inspect"}
-                </Button>
-                {!inspect && (
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={keep}
-                      onChange={(e) => setKeep(e.target.checked)}
-                      className="accent-primary"
-                    />
-                    Keep original page (crop as copy)
-                  </label>
-                )}
+                <span className="flex items-center gap-1.5">
+                  <ZoomIn size={13} />
+                  loupe follows the cursor
+                </span>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={keep}
+                    onChange={(e) => setKeep(e.target.checked)}
+                    className="accent-primary"
+                  />
+                  Keep original page (crop as copy)
+                </label>
               </div>
             </div>
           </div>
