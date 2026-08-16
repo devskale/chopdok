@@ -187,7 +187,7 @@ export const CropModal: React.FC<CropModalProps> = ({
             <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground">
               <span className="font-mono">
                 {px ? `${px.w} × ${px.h} px` : "no selection"}
-                {item.kind === "page" && " · cropped from preview resolution"}
+                {item.kind === "page" && px && " · page crops render at high resolution"}
               </span>
               <div className="flex items-center gap-4">
                 <span className="flex items-center gap-1.5">

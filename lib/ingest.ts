@@ -35,7 +35,7 @@ type PdfjsLike = {
 };
 
 let _pdfjs: PdfjsLike | null = null;
-const ensurePdfjs = async (): Promise<PdfjsLike | null> => {
+export const ensurePdfjs = async (): Promise<PdfjsLike | null> => {
   if (typeof window === "undefined") return null;
   // pdfjs-dist v6 requires Promise.try (Chrome 133+). On older engines the
   // failure is swallowed inside pdf.js' promise chain and getDocument() never
