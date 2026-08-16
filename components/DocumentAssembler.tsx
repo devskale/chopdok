@@ -104,7 +104,7 @@ export const DocumentAssembler: React.FC = () => {
   // Grid loupe (Acrobat-style toggle tool): inspect a card until toggled off.
   const [inspectId, setInspectId] = useState<string | null>(null);
   const [loupe, setLoupe] = useState<
-    { x: number; y: number; zoom: number; w: number; h: number } | null
+    { x: number; y: number; cx: number; cy: number; zoom: number; w: number; h: number } | null
   >(null);
   const cardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const [renamingItemId, setRenamingItemId] = useState<string | null>(null);
@@ -601,7 +601,17 @@ export const DocumentAssembler: React.FC = () => {
                                 if (!isInspecting) return;
                                 const r = e.currentTarget.getBoundingClientRect();
                                 setLoupe((l) =>
-                                  l ? { ...l, x: e.clientX - r.left, y: e.clientY - r.top, w: r.width, h: r.height } : l
+                                  l
+                                    ? {
+                                        ...l,
+                                        x: e.clientX - r.left,
+                                        y: e.clientY - r.top,
+                                        cx: e.clientX,
+                                        cy: e.clientY,
+                                        w: r.width,
+                                        h: r.height,
+                                      }
+                                    : l
                                 );
                               }}
                               onPointerDown={(e) => {
@@ -610,6 +620,8 @@ export const DocumentAssembler: React.FC = () => {
                                 setLoupe({
                                   x: e.clientX - r.left,
                                   y: e.clientY - r.top,
+                                  cx: e.clientX,
+                                  cy: e.clientY,
                                   zoom: loupe?.zoom ?? 3,
                                   w: r.width,
                                   h: r.height,
@@ -630,6 +642,8 @@ export const DocumentAssembler: React.FC = () => {
                                   displayH={loupe.h}
                                   x={loupe.x}
                                   y={loupe.y}
+                                  clientX={loupe.cx}
+                                  clientY={loupe.cy}
                                   zoom={loupe.zoom}
                                 />
                               )}
@@ -698,6 +712,8 @@ export const DocumentAssembler: React.FC = () => {
                                       setLoupe({
                                         x: r.width / 2,
                                         y: r.height / 2,
+                                        cx: r.left + r.width / 2,
+                                        cy: r.top + r.height / 2,
                                         zoom: 3,
                                         w: r.width,
                                         h: r.height,
