@@ -16,7 +16,8 @@ import { assignPartIndices } from "@/lib/documents";
 import { PageSizeOption } from "@/lib/exportPdf";
 import { CropRect } from "@/lib/crop";
 import { CropModal } from "@/components/CropModal";
-import { LoupeOverlay } from "@/components/Loupe";
+import { LoupeLens } from "@/components/Loupe";
+import { hiResSource } from "@/lib/crop";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -104,11 +105,13 @@ export const DocumentAssembler: React.FC = () => {
 
   // Rename dialog
   const [cropItemId, setCropItemId] = useState<string | null>(null);
-  // Grid loupe (Acrobat-style toggle tool): inspect a card until toggled off.
+  // Grid loupe: imperative lens — hi-res source, rAF-throttled DOM updates,
+  // no per-move React renders. inspectId selects the card; loupeSrc is the
+  // hi-res bitmap (loaded on demand); loupeSurface anchors the zoom math.
   const [inspectId, setInspectId] = useState<string | null>(null);
-  const [loupe, setLoupe] = useState<
-    { x: number; y: number; cx: number; cy: number; zoom: number; w: number; h: number } | null
-  >(null);
+  const [loupeSrc, setLoupeSrc] = useState<string | null>(null);
+  const [loupeNatural, setLoupeNatural] = useState<{ w: number; h: number } | null>(null);
+  const [loupeSurface, setLoupeSurface] = useState<HTMLElement | null>(null);
   const cardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const [renamingItemId, setRenamingItemId] = useState<string | null>(null);
   const [newPartName, setNewPartName] = useState("");
@@ -319,7 +322,8 @@ export const DocumentAssembler: React.FC = () => {
     setIsZipDownloaded(false);
     setThumbnailSize(2);
     setInspectId(null);
-    setLoupe(null);
+    setLoupeSrc(null);
+    setLoupeSurface(null);
     clearDragState();
     const input = document.getElementById("file-upload") as HTMLInputElement | null;
     if (input) input.value = "";
@@ -368,28 +372,14 @@ export const DocumentAssembler: React.FC = () => {
     document.body.removeChild(link);
   };
 
-  // Wheel adjusts loupe zoom while inspecting; native listener (preventDefault).
-  useEffect(() => {
-    if (!inspectId) return;
-    const card = cardRefs.current.get(inspectId);
-    if (!card) return;
-    const onWheel = (e: WheelEvent) => {
-      e.preventDefault();
-      setLoupe((l) =>
-        l ? { ...l, zoom: Math.min(8, Math.max(1.5, l.zoom * (e.deltaY < 0 ? 1.2 : 1 / 1.2))) } : l
-      );
-    };
-    card.addEventListener("wheel", onWheel, { passive: false });
-    return () => card.removeEventListener("wheel", onWheel);
-  }, [inspectId]);
-
   // Esc exits inspection; Clear All resets it.
   useEffect(() => {
     if (!inspectId) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         setInspectId(null);
-        setLoupe(null);
+        setLoupeSrc(null);
+        setLoupeSurface(null);
       }
     };
     window.addEventListener("keydown", onKey);
@@ -600,36 +590,7 @@ export const DocumentAssembler: React.FC = () => {
                             <div
                               data-loupe-surface
                               className="aspect-[1/1.4] relative bg-background/60"
-                              onPointerMove={(e) => {
-                                if (!isInspecting) return;
-                                const r = e.currentTarget.getBoundingClientRect();
-                                setLoupe((l) =>
-                                  l
-                                    ? {
-                                        ...l,
-                                        x: e.clientX - r.left,
-                                        y: e.clientY - r.top,
-                                        cx: e.clientX,
-                                        cy: e.clientY,
-                                        w: r.width,
-                                        h: r.height,
-                                      }
-                                    : l
-                                );
-                              }}
-                              onPointerDown={(e) => {
-                                if (!isInspecting) return;
-                                const r = e.currentTarget.getBoundingClientRect();
-                                setLoupe({
-                                  x: e.clientX - r.left,
-                                  y: e.clientY - r.top,
-                                  cx: e.clientX,
-                                  cy: e.clientY,
-                                  zoom: loupe?.zoom ?? 3,
-                                  w: r.width,
-                                  h: r.height,
-                                });
-                              }}>
+                              style={isInspecting ? { cursor: "none" } : undefined}>
                               <Image
                                 src={item.thumbnailUrl}
                                 alt={item.label}
@@ -638,18 +599,7 @@ export const DocumentAssembler: React.FC = () => {
                                 unoptimized
                                 className="object-contain p-2"
                               />
-                              {isInspecting && loupe && (
-                                <LoupeOverlay
-                                  src={item.thumbnailUrl}
-                                  displayW={loupe.w}
-                                  displayH={loupe.h}
-                                  x={loupe.x}
-                                  y={loupe.y}
-                                  clientX={loupe.cx}
-                                  clientY={loupe.cy}
-                                  zoom={loupe.zoom}
-                                />
-                              )}
+
                             </div>
 
                             <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors pointer-events-none" />
@@ -709,27 +659,25 @@ export const DocumentAssembler: React.FC = () => {
                                 onClick={() => {
                                   if (isInspecting) {
                                     setInspectId(null);
-                                    setLoupe(null);
-                                  } else {
-                                    setInspectId(item.id);
-                                    // seed the lens at the card's center so it is
-                                    // visible the instant the mode turns on
-                                    const surf = cardRefs.current
-                                      .get(item.id)
-                                      ?.querySelector("[data-loupe-surface]");
-                                    if (surf) {
-                                      const r = surf.getBoundingClientRect();
-                                      setLoupe({
-                                        x: r.width / 2,
-                                        y: r.height / 2,
-                                        cx: r.left + r.width / 2,
-                                        cy: r.top + r.height / 2,
-                                        zoom: 3,
-                                        w: r.width,
-                                        h: r.height,
-                                      });
-                                    }
+                                    setLoupeSrc(null);
+                                    setLoupeSurface(null);
+                                    return;
                                   }
+                                  setInspectId(item.id);
+                                  const surf = (cardRefs.current
+                                    .get(item.id)
+                                    ?.querySelector("[data-loupe-surface]") ?? null) as HTMLElement | null;
+                                  setLoupeSurface(surf);
+                                  // preview first (instant), swap to hi-res when ready
+                                  setLoupeSrc(item.thumbnailUrl);
+                                  setLoupeNatural({ w: item.width, h: item.height });
+                                  void hiResSource(item).then((src) => {
+                                    setLoupeSrc((cur) => (cur === item.thumbnailUrl ? src : cur));
+                                    const img = new window.Image();
+                                    img.onload = () =>
+                                      setLoupeNatural({ w: img.naturalWidth, h: img.naturalHeight });
+                                    img.src = src;
+                                  });
                                 }}
                                 title={isInspecting ? "Stop inspecting (Esc)" : "Inspect — magnifier follows the cursor, wheel zooms"}
                                 aria-label={isInspecting ? "Stop inspecting page" : "Inspect page"}
@@ -927,6 +875,22 @@ export const DocumentAssembler: React.FC = () => {
             )}
           </div>
         </div>
+      )}
+
+      {/* Grid loupe (imperative, portaled) */}
+      {inspectId && loupeSrc && loupeSurface && loupeNatural && (
+        <LoupeLens
+          key={inspectId}
+          src={loupeSrc}
+          surface={loupeSurface}
+          naturalW={loupeNatural.w}
+          naturalH={loupeNatural.h}
+          onExit={() => {
+            setInspectId(null);
+            setLoupeSrc(null);
+            setLoupeSurface(null);
+          }}
+        />
       )}
 
       {/* Crop dialog */}

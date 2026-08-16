@@ -99,6 +99,32 @@ async function canvasToItem(canvas: HTMLCanvasElement, label: string): Promise<D
 }
 
 /**
+ * Hi-res data URL of an item's full bitmap (for the loupe):
+ * images -> the original file; PDF pages -> a ~2200px pdf.js re-render.
+ * Falls back to the preview if anything fails.
+ */
+export async function hiResSource(item: DocumentItem): Promise<string> {
+  if (item.source.type !== "pdf") return item.thumbnailUrl;
+  try {
+    const pdfjs = await ensurePdfjs();
+    if (!pdfjs) return item.thumbnailUrl;
+    const data = new Uint8Array(await item.source.file.arrayBuffer());
+    const pdf = await pdfjs.getDocument({ data }).promise;
+    const page = await pdf.getPage(item.source.pageIndex + 1);
+    const base = page.getViewport({ scale: 1 });
+    const scale = Math.min(8, Math.max(1, HIGHRES_TARGET_PX / base.width));
+    const viewport = page.getViewport({ scale });
+    const canvas = document.createElement("canvas");
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    await page.render({ canvasContext: canvas.getContext("2d")!, viewport }).promise;
+    return canvas.toDataURL("image/png");
+  } catch {
+    return item.thumbnailUrl;
+  }
+}
+
+/**
  * Crop a PDF PAGE at high resolution: re-render the source page via pdf.js
  * at a scale chosen so the CROP REGION lands at ~HIGHRES_TARGET_PX wide
  * (capped 8x), then cut the region from that canvas. Cropping the preview
