@@ -101,11 +101,12 @@ export const DocumentAssembler: React.FC = () => {
 
   // Rename dialog
   const [cropItemId, setCropItemId] = useState<string | null>(null);
-  // Grid loupe: hold the magnifier button on a card to inspect it.
+  // Grid loupe (Acrobat-style toggle tool): inspect a card until toggled off.
+  const [inspectId, setInspectId] = useState<string | null>(null);
   const [loupe, setLoupe] = useState<
-    { id: string; x: number; y: number; zoom: number; w: number; h: number } | null
+    { x: number; y: number; zoom: number; w: number; h: number } | null
   >(null);
-  const loupeBtns = useRef<Map<string, HTMLButtonElement>>(new Map());
+  const cardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const [renamingItemId, setRenamingItemId] = useState<string | null>(null);
   const [newPartName, setNewPartName] = useState("");
   const [isRenameOpen, setIsRenameOpen] = useState(false);
@@ -314,6 +315,8 @@ export const DocumentAssembler: React.FC = () => {
     setDownloaded(new Set());
     setIsZipDownloaded(false);
     setThumbnailSize(2);
+    setInspectId(null);
+    setLoupe(null);
     clearDragState();
     const input = document.getElementById("file-upload") as HTMLInputElement | null;
     if (input) input.value = "";
@@ -362,27 +365,33 @@ export const DocumentAssembler: React.FC = () => {
     document.body.removeChild(link);
   };
 
-  // Wheel adjusts loupe zoom; native listener so preventDefault works.
+  // Wheel adjusts loupe zoom while inspecting; native listener (preventDefault).
   useEffect(() => {
-    if (!loupe) return;
-    const btn = loupeBtns.current.get(loupe.id);
-    if (!btn) return;
+    if (!inspectId) return;
+    const card = cardRefs.current.get(inspectId);
+    if (!card) return;
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
       setLoupe((l) =>
-        l
-          ? {
-              ...l,
-              zoom: Math.min(8, Math.max(1.5, l.zoom * (e.deltaY < 0 ? 1.2 : 1 / 1.2))),
-            }
-          : l
+        l ? { ...l, zoom: Math.min(8, Math.max(1.5, l.zoom * (e.deltaY < 0 ? 1.2 : 1 / 1.2))) } : l
       );
     };
-    btn.addEventListener("wheel", onWheel, { passive: false });
-    return () => btn.removeEventListener("wheel", onWheel);
-    // zoom lives in the setter callback; re-binding only on card change is intended
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loupe?.id]);
+    card.addEventListener("wheel", onWheel, { passive: false });
+    return () => card.removeEventListener("wheel", onWheel);
+  }, [inspectId]);
+
+  // Esc exits inspection; Clear All resets it.
+  useEffect(() => {
+    if (!inspectId) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setInspectId(null);
+        setLoupe(null);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [inspectId]);
 
   const liveCount = items.length - deletedCount;
 
@@ -549,13 +558,18 @@ export const DocumentAssembler: React.FC = () => {
                       const gapAfterEnd =
                         dropTarget === items.length && index === items.length - 1;
 
-                      const loupeSurfaceOf = (el: HTMLElement) =>
-                        el.closest("[data-card]")?.querySelector("[data-loupe-surface]") as
-                          | HTMLElement
-                          | null;
+                      const isInspecting = inspectId === item.id;
 
                       return (
-                        <div key={item.id} className="relative group" data-card>
+                        <div
+                          key={item.id}
+                          className="relative group"
+                          data-card
+                          ref={(el) => {
+                            if (el) cardRefs.current.set(item.id, el);
+                            else cardRefs.current.delete(item.id);
+                          }}
+                          style={isInspecting ? { cursor: "none" } : undefined}>
                           {/* Insertion gap indicator — glowing bar at the drop gap */}
                           {draggingIndex !== null && gapBefore && (
                             <div className="absolute -left-3 top-0 bottom-0 w-1.5 rounded-full bg-primary glow-primary z-30 pointer-events-none animate-pulse" />
@@ -565,8 +579,12 @@ export const DocumentAssembler: React.FC = () => {
                           )}
 
                           <div
-                            draggable
+                            draggable={!isInspecting}
                             onDragStart={(e) => {
+                              if (isInspecting) {
+                                e.preventDefault();
+                                return;
+                              }
                               handleCardDragStart(index);
                               e.dataTransfer.effectAllowed = "move";
                             }}
@@ -578,7 +596,25 @@ export const DocumentAssembler: React.FC = () => {
                             } ${gapAfterEnd ? "translate-x-1.5" : ""}`}>
                             <div
                               data-loupe-surface
-                              className="aspect-[1/1.4] relative bg-background/60">
+                              className="aspect-[1/1.4] relative bg-background/60"
+                              onPointerMove={(e) => {
+                                if (!isInspecting) return;
+                                const r = e.currentTarget.getBoundingClientRect();
+                                setLoupe((l) =>
+                                  l ? { ...l, x: e.clientX - r.left, y: e.clientY - r.top, w: r.width, h: r.height } : l
+                                );
+                              }}
+                              onPointerDown={(e) => {
+                                if (!isInspecting) return;
+                                const r = e.currentTarget.getBoundingClientRect();
+                                setLoupe({
+                                  x: e.clientX - r.left,
+                                  y: e.clientY - r.top,
+                                  zoom: loupe?.zoom ?? 3,
+                                  w: r.width,
+                                  h: r.height,
+                                });
+                              }}>
                               <Image
                                 src={item.thumbnailUrl}
                                 alt={item.label}
@@ -587,7 +623,7 @@ export const DocumentAssembler: React.FC = () => {
                                 unoptimized
                                 className="object-contain p-2"
                               />
-                              {loupe?.id === item.id && (
+                              {isInspecting && loupe && (
                                 <LoupeOverlay
                                   src={item.thumbnailUrl}
                                   displayW={loupe.w}
@@ -638,43 +674,26 @@ export const DocumentAssembler: React.FC = () => {
                               </Button>
                             )}
 
-                            {/* Inspect (hold) — loupe follows the cursor, wheel zooms */}
+                            {/* Inspect (toggle) — loupe follows the cursor, wheel zooms, Esc exits */}
                             {!isShaded && (
                               <Button
-                                ref={(el) => {
-                                  if (el) loupeBtns.current.set(item.id, el);
-                                  else loupeBtns.current.delete(item.id);
+                                className={`absolute bottom-12 left-2 h-8 w-8 rounded-full p-0 transition-all duration-200 ${
+                                  isInspecting
+                                    ? "opacity-100 bg-primary border border-primary text-primary-foreground glow-primary"
+                                    : "glass border border-white/15 text-foreground hover:text-primary hover:border-primary opacity-0 group-hover:opacity-100"
+                                }`}
+                                onClick={() => {
+                                  if (isInspecting) {
+                                    setInspectId(null);
+                                    setLoupe(null);
+                                  } else {
+                                    setInspectId(item.id); // lens appears at the first cursor move
+                                    setLoupe(null);
+                                  }
                                 }}
-                                className="absolute bottom-12 left-2 h-8 w-8 rounded-full p-0 glass border border-white/15 text-foreground hover:text-primary hover:border-primary opacity-0 group-hover:opacity-100 transition-all duration-200"
-                                onPointerDown={(e) => {
-                                  e.stopPropagation();
-                                  e.preventDefault();
-                                  const surf = loupeSurfaceOf(e.currentTarget);
-                                  if (!surf) return;
-                                  const r = surf.getBoundingClientRect();
-                                  e.currentTarget.setPointerCapture(e.pointerId);
-                                  setLoupe({
-                                    id: item.id,
-                                    x: e.clientX - r.left,
-                                    y: e.clientY - r.top,
-                                    zoom: 3,
-                                    w: r.width,
-                                    h: r.height,
-                                  });
-                                }}
-                                onPointerMove={(e) => {
-                                  setLoupe((l) => {
-                                    if (!l || l.id !== item.id) return l;
-                                    const surf = loupeSurfaceOf(e.currentTarget);
-                                    if (!surf) return l;
-                                    const r = surf.getBoundingClientRect();
-                                    return { ...l, x: e.clientX - r.left, y: e.clientY - r.top };
-                                  });
-                                }}
-                                onPointerUp={() => setLoupe(null)}
-                                onPointerCancel={() => setLoupe(null)}
-                                title="Hold to inspect · scroll to zoom"
-                                aria-label="Inspect page">
+                                title={isInspecting ? "Stop inspecting (Esc)" : "Inspect — magnifier follows the cursor, wheel zooms"}
+                                aria-label={isInspecting ? "Stop inspecting page" : "Inspect page"}
+                                aria-pressed={isInspecting}>
                                 <ZoomIn size={16} />
                               </Button>
                             )}
