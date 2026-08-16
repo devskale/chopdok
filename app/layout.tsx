@@ -17,7 +17,7 @@ const geistMono = localFont({
 
 export const metadata: Metadata = {
   title: "ChopDok",
-  description: "Painless PDF chopping — split, delete, and rename pages, free and entirely in your browser. No uploads, no ads, no data collection.",
+  description: "Assemble PDFs and images into one document — reorder, split, and export as PDF, free and entirely in your browser. No uploads, no ads, no data collection.",
   icons: {
     icon: `${BASE_PATH}/choppr.png`,
     apple: `${BASE_PATH}/choppr.png`,
