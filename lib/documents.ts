@@ -95,6 +95,35 @@ export interface Part {
 
 const editOf = (edits: ItemEdits, id: string): ItemEditState => edits[id] ?? DEFAULT_EDIT;
 
+// ---- Source-document runs (for doc borders in the grid) ----
+
+export interface DocRun {
+  /** The source file (identity = reference; PDF pages share one File). */
+  file: File;
+  /** Index of the run's first item in the ordered list. */
+  startIndex: number;
+  /** Consecutive items from this file. */
+  length: number;
+}
+
+/**
+ * Group consecutive items sharing a source file. Pure and dynamic: runs are
+ * recomputed on every reorder, so document borders always sit where the
+ * source file actually changes.
+ */
+export function deriveDocRuns(items: DocumentItem[]): DocRun[] {
+  const runs: DocRun[] = [];
+  items.forEach((item, index) => {
+    const prev = items[index - 1];
+    if (prev && prev.source.file === item.source.file && runs.length) {
+      runs[runs.length - 1].length++;
+    } else {
+      runs.push({ file: item.source.file, startIndex: index, length: 1 });
+    }
+  });
+  return runs;
+}
+
 /**
  * Walk the ordered items and group them into live segments.
  *

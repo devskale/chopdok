@@ -75,7 +75,7 @@ export default function Page() {
           <div className="flex items-center gap-2">
             <span className="font-semibold text-foreground">ChopDok</span>
             <span className="text-muted-foreground/60">·</span>
-            <span className="font-mono text-xs">v1.8</span>
+            <span className="font-mono text-xs">v2.0</span>
           </div>
           <div className="flex items-center gap-6">
             <Link

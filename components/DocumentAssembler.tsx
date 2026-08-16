@@ -12,7 +12,7 @@ import {
   useDocumentAssembler,
   DocumentAssemblerHook,
 } from "@/lib/useDocumentAssembler";
-import { assignPartIndices } from "@/lib/documents";
+import { assignPartIndices, deriveDocRuns, DocRun } from "@/lib/documents";
 import { PageSizeOption } from "@/lib/exportPdf";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -86,8 +86,10 @@ export const DocumentAssembler: React.FC = () => {
 
   const [thumbnailSize, setThumbnailSize] = useState(2); // 1-4 zoom
   const [isFileDragging, setIsFileDragging] = useState(false);
-  const [dropIndex, setDropIndex] = useState<number | null>(null);
+  const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
+  const [dropTarget, setDropTarget] = useState<number | null>(null); // gap index: insert before items[dropTarget]
   const dragIndexRef = useRef<number | null>(null);
+  const dropTargetRef = useRef<number | null>(null);
   const [pageSize, setPageSize] = useState<PageSizeOption>("fit");
   const [isExporting, setIsExporting] = useState(false);
   const [results, setResults] = useState<{ name: string; url: string }[]>([]);
@@ -119,6 +121,8 @@ export const DocumentAssembler: React.FC = () => {
 
   // Per-item segment index for tinting/labels (includes deleted items).
   const partIndices = useMemo(() => assignPartIndices(items, edits), [items, edits]);
+  // Source-document runs -> bordered groups in the grid (recomputed on reorder).
+  const docRuns = useMemo(() => deriveDocRuns(items), [items]);
   const partByStart = useMemo(() => {
     const map = new Map<string, (typeof parts)[number]>();
     for (const p of parts) map.set(p.startItemId, p);
@@ -153,15 +157,37 @@ export const DocumentAssembler: React.FC = () => {
     if (e.dataTransfer.files?.length) void addFiles(e.dataTransfer.files);
   };
 
-  // ---- reorder (native DnD between cards + arrow buttons) ----
+  // ---- reorder (native DnD with gap indicator + arrow buttons) ----
+  const clearDragState = () => {
+    dragIndexRef.current = null;
+    dropTargetRef.current = null;
+    setDraggingIndex(null);
+    setDropTarget(null);
+  };
   const handleCardDragStart = (index: number) => {
     dragIndexRef.current = index;
+    setDraggingIndex(index);
   };
-  const handleCardDrop = (index: number) => {
+  const handleCardDragOver = (e: React.DragEvent<HTMLElement>, index: number) => {
+    if (dragIndexRef.current === null) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    // Pointer in the left half of the card -> gap before it; right half -> after.
+    const rect = e.currentTarget.getBoundingClientRect();
+    const gap = e.clientX < rect.left + rect.width / 2 ? index : index + 1;
+    dropTargetRef.current = gap;
+    setDropTarget(gap);
+  };
+  const handleCardDrop = (e: React.DragEvent<HTMLElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
     const from = dragIndexRef.current;
-    dragIndexRef.current = null;
-    setDropIndex(null);
-    if (from !== null && from !== index) move(from, index);
+    const gap = dropTargetRef.current;
+    clearDragState();
+    if (from === null || gap === null) return;
+    // Gap (original-array) -> insertion index in the array without the item.
+    const to = gap > from ? gap - 1 : gap;
+    if (to !== from) move(from, to);
   };
 
   const handleFileChange = useCallback(
@@ -245,8 +271,7 @@ export const DocumentAssembler: React.FC = () => {
     setDownloaded(new Set());
     setIsZipDownloaded(false);
     setThumbnailSize(2);
-    setDropIndex(null);
-    dragIndexRef.current = null;
+    clearDragState();
     const input = document.getElementById("file-upload") as HTMLInputElement | null;
     if (input) input.value = "";
     if (scrollContainerRef.current) scrollContainerRef.current.scrollTop = 0;
@@ -449,158 +474,190 @@ export const DocumentAssembler: React.FC = () => {
           <div
             ref={scrollContainerRef}
             className="overflow-y-auto max-h-[600px] p-4 rounded-2xl bg-background/30">
-            <div className={`grid ${gridCols} gap-5`}>
-              {items.map((item, index) => {
-                const edit = edits[item.id];
-                const isShaded = !!edit?.deleted;
-                const partIdx = partIndices[index];
-                const sectionColor = sectionTints[partIdx % sectionTints.length];
-                const part = partByStart.get(item.id);
-                const isPartStart = !!part;
-                const displayPartName = part?.name ?? `Part ${(partIdx ?? 0) + 1}`;
-                const nextEdit = items[index + 1] ? edits[items[index + 1].id] : undefined;
-                const splitActive = !!nextEdit?.partStart;
-
-                return (
-                  <div key={item.id} className="relative group">
-                    <div
-                      draggable
-                      onDragStart={() => handleCardDragStart(index)}
-                      onDragOver={(e) => {
-                        if (dragIndexRef.current !== null) {
-                          e.preventDefault();
-                          setDropIndex(index);
-                        }
-                      }}
-                      onDragLeave={() =>
-                        setDropIndex((d) => (d === index ? null : d))
-                      }
-                      onDrop={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        handleCardDrop(index);
-                      }}
-                      className={`relative rounded-xl overflow-hidden transition-all duration-200 hover:-translate-y-0.5 hover:ring-1 hover:ring-primary/40 cursor-grab active:cursor-grabbing ${sectionColor} ${
-                        isShaded ? "opacity-40 grayscale" : ""
-                      } ${dropIndex === index ? "ring-2 ring-primary scale-[1.02]" : ""}`}>
-                      <div className="aspect-[1/1.4] relative bg-background/60">
-                        <Image
-                          src={item.thumbnailUrl}
-                          alt={item.label}
-                          fill
-                          sizes="20vw"
-                          unoptimized
-                          className="object-contain p-2"
-                        />
-                        <div className="absolute top-2 right-2 grid place-items-center w-5 h-5 rounded-md bg-background/70 border border-border/60 pointer-events-none">
-                          {item.kind === "image" ? (
-                            <ImageIcon size={11} className="text-muted-foreground" />
-                          ) : (
-                            <FileText size={11} className="text-muted-foreground" />
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors pointer-events-none" />
-
-                      {/* Label bar */}
-                      <div className="absolute bottom-0 left-0 right-0 glass border-t border-white/10 p-2 flex justify-between items-center">
-                        <button
-                          className={`text-xs font-medium px-1.5 py-0.5 rounded flex items-center gap-1 max-w-[70%] transition-colors ${
-                            isPartStart
-                              ? "cursor-pointer hover:bg-primary/20 hover:text-primary"
-                              : "cursor-default text-muted-foreground"
-                          }`}
-                          onClick={(e) => {
-                            if (isPartStart && part) {
-                              e.stopPropagation();
-                              openRename(part.startItemId, displayPartName);
-                            }
-                          }}
-                          disabled={!isPartStart}
-                          aria-label={isPartStart ? "Rename segment" : "Segment name"}>
-                          <span className="truncate">{displayPartName}</span>
-                          {isPartStart && (
-                            <Edit2 size={10} className="opacity-50 shrink-0" />
-                          )}
-                        </button>
-                        <span className="text-xs text-muted-foreground font-mono">
-                          {index + 1}
-                        </span>
-                      </div>
-
-                      {/* Remove / restore */}
-                      <Button
-                        className={`absolute top-2 left-2 h-8 w-8 rounded-full p-0 transition-all duration-200
-                          ${
-                            isShaded
-                              ? "bg-foreground text-background hover:bg-foreground/80"
-                              : "glass border border-white/15 text-foreground hover:bg-destructive hover:text-destructive-foreground hover:border-destructive opacity-0 group-hover:opacity-100"
-                          }
-                        `}
-                        onClick={() => toggleDeleted(item.id)}
-                        title={isShaded ? "Restore item" : "Remove item"}
-                        aria-label={isShaded ? "Restore item" : "Remove item"}>
-                        {isShaded ? <Plus size={16} /> : <X size={16} />}
-                      </Button>
-
-                      {/* Reorder arrows */}
-                      <div className="absolute bottom-12 right-1 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="glass h-6 w-6 rounded-full p-0"
-                          disabled={index === 0}
-                          onClick={() => shift(index, -1)}
-                          title="Move earlier"
-                          aria-label="Move earlier">
-                          <ChevronLeft size={13} />
-                        </Button>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="glass h-6 w-6 rounded-full p-0"
-                          disabled={index === items.length - 1}
-                          onClick={() => shift(index, 1)}
-                          title="Move later"
-                          aria-label="Move later">
-                          <ChevronRight size={13} />
-                        </Button>
-                      </div>
-                    </div>
-
-                    {/* Split handle — boundary AFTER this card */}
-                    {index < items.length - 1 && (
-                      <div
-                        role="button"
-                        tabIndex={0}
-                        aria-label={`Split at item ${index + 2}`}
-                        className={`absolute top-1/2 -right-3 w-6 h-6 -mt-3 z-10 cursor-pointer rounded-full transition-all duration-200 hover:scale-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary
-                                    ${
-                                      splitActive
-                                        ? "opacity-100"
-                                        : "opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
-                                    }`}
-                        onClick={() => togglePartStart(items[index + 1].id)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" || e.key === " ") {
-                            e.preventDefault();
-                            togglePartStart(items[index + 1].id);
-                          }
-                        }}>
-                        <div
-                          className={`w-full h-full rounded-full grid place-items-center border transition-colors ${
-                            splitActive
-                              ? "bg-primary border-primary text-primary-foreground glow-primary"
-                              : "glass border-border text-muted-foreground hover:text-primary hover:border-primary"
-                          }`}>
-                          <Scissors size={13} />
-                        </div>
-                      </div>
-                    )}
+            <div className="space-y-6">
+              {docRuns.map((run: DocRun) => (
+                <div
+                  key={run.startIndex}
+                  className="rounded-2xl border border-border/60 bg-background/20 p-3 space-y-3">
+                  {/* Doc border header */}
+                  <div className="flex items-center gap-2 min-w-0 px-1 pt-1">
+                    <span className="grid place-items-center w-6 h-6 rounded-md bg-secondary/70 border border-border/60 shrink-0">
+                      {run.file.type === "application/pdf" || /\.pdf$/i.test(run.file.name) ? (
+                        <FileText size={12} className="text-rose-400" />
+                      ) : (
+                        <ImageIcon size={12} className="text-cyan-400" />
+                      )}
+                    </span>
+                    <span className="text-xs font-medium text-foreground/80 truncate">
+                      {run.file.name}
+                    </span>
+                    <span className="text-[10px] font-mono text-muted-foreground/70 shrink-0">
+                      {run.length} item{run.length === 1 ? "" : "s"}
+                    </span>
+                    <div className="flex-1 h-px bg-border/50" />
                   </div>
-                );
-              })}
+                  <div className={`grid ${gridCols} gap-5`}>
+                    {items.slice(run.startIndex, run.startIndex + run.length).map((item, localIdx) => {
+                      const index = run.startIndex + localIdx;
+                      const edit = edits[item.id];
+                      const isShaded = !!edit?.deleted;
+                      const partIdx = partIndices[index];
+                      const sectionColor = sectionTints[partIdx % sectionTints.length];
+                      const part = partByStart.get(item.id);
+                      const isPartStart = !!part;
+                      const displayPartName = part?.name ?? `Part ${(partIdx ?? 0) + 1}`;
+                      const nextEdit = items[index + 1] ? edits[items[index + 1].id] : undefined;
+                      const splitActive = !!nextEdit?.partStart;
+                      const isDragging = draggingIndex === index;
+                      const gapBefore = dropTarget === index;
+                      const gapAfterEnd =
+                        dropTarget === items.length && index === items.length - 1;
+
+                      return (
+                        <div key={item.id} className="relative group">
+                          {/* Insertion gap indicator — glowing bar at the drop gap */}
+                          {draggingIndex !== null && gapBefore && (
+                            <div className="absolute -left-3 top-0 bottom-0 w-1.5 rounded-full bg-primary glow-primary z-30 pointer-events-none animate-pulse" />
+                          )}
+                          {draggingIndex !== null && gapAfterEnd && (
+                            <div className="absolute -right-3 top-0 bottom-0 w-1.5 rounded-full bg-primary glow-primary z-30 pointer-events-none animate-pulse" />
+                          )}
+
+                          <div
+                            draggable
+                            onDragStart={(e) => {
+                              handleCardDragStart(index);
+                              e.dataTransfer.effectAllowed = "move";
+                            }}
+                            onDragEnd={clearDragState}
+                            onDragOver={(e) => handleCardDragOver(e, index)}
+                            onDrop={handleCardDrop}
+                            className={`relative rounded-xl overflow-hidden transition-all duration-150 hover:-translate-y-0.5 hover:ring-1 hover:ring-primary/40 cursor-grab active:cursor-grabbing ${sectionColor} ${
+                              isShaded ? "opacity-40 grayscale" : ""
+                            } ${isDragging ? "opacity-30 grayscale scale-95 ring-2 ring-primary/60 border-dashed" : ""} ${
+                              gapBefore ? "-translate-x-1.5" : ""
+                            } ${gapAfterEnd ? "translate-x-1.5" : ""}`}>
+                            <div className="aspect-[1/1.4] relative bg-background/60">
+                              <Image
+                                src={item.thumbnailUrl}
+                                alt={item.label}
+                                fill
+                                sizes="20vw"
+                                unoptimized
+                                className="object-contain p-2"
+                              />
+                              <div className="absolute top-2 right-2 grid place-items-center w-5 h-5 rounded-md bg-background/70 border border-border/60 pointer-events-none">
+                                {item.kind === "image" ? (
+                                  <ImageIcon size={11} className="text-muted-foreground" />
+                                ) : (
+                                  <FileText size={11} className="text-muted-foreground" />
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors pointer-events-none" />
+
+                            {/* Label bar */}
+                            <div className="absolute bottom-0 left-0 right-0 glass border-t border-white/10 p-2 flex justify-between items-center">
+                              <button
+                                className={`text-xs font-medium px-1.5 py-0.5 rounded flex items-center gap-1 max-w-[70%] transition-colors ${
+                                  isPartStart
+                                    ? "cursor-pointer hover:bg-primary/20 hover:text-primary"
+                                    : "cursor-default text-muted-foreground"
+                                }`}
+                                onClick={(e) => {
+                                  if (isPartStart && part) {
+                                    e.stopPropagation();
+                                    openRename(part.startItemId, displayPartName);
+                                  }
+                                }}
+                                disabled={!isPartStart}
+                                aria-label={isPartStart ? "Rename segment" : "Segment name"}>
+                                <span className="truncate">{displayPartName}</span>
+                                {isPartStart && (
+                                  <Edit2 size={10} className="opacity-50 shrink-0" />
+                                )}
+                              </button>
+                              <span className="text-xs text-muted-foreground font-mono">
+                                {index + 1}
+                              </span>
+                            </div>
+
+                            {/* Remove / restore */}
+                            <Button
+                              className={`absolute top-2 left-2 h-8 w-8 rounded-full p-0 transition-all duration-200
+                                ${
+                                  isShaded
+                                    ? "bg-foreground text-background hover:bg-foreground/80"
+                                    : "glass border border-white/15 text-foreground hover:bg-destructive hover:text-destructive-foreground hover:border-destructive opacity-0 group-hover:opacity-100"
+                                }
+                              `}
+                              onClick={() => toggleDeleted(item.id)}
+                              title={isShaded ? "Restore item" : "Remove item"}
+                              aria-label={isShaded ? "Restore item" : "Remove item"}>
+                              {isShaded ? <Plus size={16} /> : <X size={16} />}
+                            </Button>
+
+                            {/* Reorder arrows */}
+                            <div className="absolute bottom-12 right-1 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="glass h-6 w-6 rounded-full p-0"
+                                disabled={index === 0}
+                                onClick={() => shift(index, -1)}
+                                title="Move earlier"
+                                aria-label="Move earlier">
+                                <ChevronLeft size={13} />
+                              </Button>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="glass h-6 w-6 rounded-full p-0"
+                                disabled={index === items.length - 1}
+                                onClick={() => shift(index, 1)}
+                                title="Move later"
+                                aria-label="Move later">
+                                <ChevronRight size={13} />
+                              </Button>
+                            </div>
+                          </div>
+
+                          {/* Split handle — boundary AFTER this card */}
+                          {index < items.length - 1 && (
+                            <div
+                              role="button"
+                              tabIndex={0}
+                              aria-label={`Split at item ${index + 2}`}
+                              className={`absolute top-1/2 -right-3 w-6 h-6 -mt-3 z-10 cursor-pointer rounded-full transition-all duration-200 hover:scale-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary
+                                          ${
+                                            splitActive
+                                              ? "opacity-100"
+                                              : "opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+                                          }`}
+                              onClick={() => togglePartStart(items[index + 1].id)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" || e.key === " ") {
+                                  e.preventDefault();
+                                  togglePartStart(items[index + 1].id);
+                                }
+                              }}>
+                              <div
+                                className={`w-full h-full rounded-full grid place-items-center border transition-colors ${
+                                  splitActive
+                                    ? "bg-primary border-primary text-primary-foreground glow-primary"
+                                    : "glass border-border text-muted-foreground hover:text-primary hover:border-primary"
+                                }`}>
+                                <Scissors size={13} />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </div>

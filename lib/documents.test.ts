@@ -6,6 +6,7 @@ import {
   removeItems,
   deriveParts,
   assignPartIndices,
+  deriveDocRuns,
 } from "./documents";
 
 let n = 0;
@@ -157,5 +158,47 @@ describe("assignPartIndices (display helper)", () => {
     const items = [item(), item(), item()];
     const edits = { i1: { deleted: true, partStart: false } };
     expect(assignPartIndices(items, edits)).toEqual([0, 0, 0]);
+  });
+});
+
+describe("deriveDocRuns (doc borders)", () => {
+  const file = (name: string) => new File([], name);
+  const from = (f: File): DocumentItem =>
+    item({ source: { type: "image", file: f } });
+
+  it("single file -> one run covering all items", () => {
+    const f = file("scan.pdf");
+    const runs = deriveDocRuns([from(f), from(f), from(f)]);
+    expect(runs).toHaveLength(1);
+    expect(runs[0]).toMatchObject({ file: f, startIndex: 0, length: 3 });
+  });
+
+  it("groups consecutive items by source FILE IDENTITY", () => {
+    const a = file("a.pdf");
+    const b = file("b.png");
+    const runs = deriveDocRuns([from(a), from(a), from(b), from(a)]);
+    expect(runs.map((r) => [r.file, r.startIndex, r.length])).toEqual([
+      [a, 0, 2],
+      [b, 2, 1],
+      [a, 3, 1],
+    ]);
+  });
+
+  it("reordering splits a file's pages into separate runs (dynamic)", () => {
+    const a = file("a.pdf");
+    const b = file("b.pdf");
+    // b's page wedged between a's pages -> a shows as two bordered groups
+    const runs = deriveDocRuns([from(a), from(b), from(a)]);
+    expect(runs).toHaveLength(3);
+    expect(runs.map((r) => r.file)).toEqual([a, b, a]);
+  });
+
+  it("same-named different files are distinct runs", () => {
+    const runs = deriveDocRuns([from(file("x.pdf")), from(file("x.pdf"))]);
+    expect(runs).toHaveLength(2);
+  });
+
+  it("empty list -> no runs", () => {
+    expect(deriveDocRuns([])).toEqual([]);
   });
 });

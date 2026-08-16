@@ -3,7 +3,7 @@
 // - PDF  -> one item per page (thumbnails rendered via pdf.js)
 // - Image -> one item (thumbnail = the image itself, loaded via <img>/canvas)
 //
-// Everything here is browser-only; guard for `window` like simplePdfUploader did.
+// Everything here is browser-only; guard for `window` (SSR-safe).
 
 import { DocumentItem, ItemSource, makeItemId } from "./documents";
 import { BASE_PATH } from "./basePath";
@@ -16,7 +16,7 @@ export type IngestResult = {
   error?: string;
 };
 
-// ---- pdf.js bootstrap (moved from simplePdfUploader) ----
+// ---- pdf.js bootstrap ----
 
 type Viewport = { height: number; width: number };
 type RenderTask = { promise: Promise<void> };
