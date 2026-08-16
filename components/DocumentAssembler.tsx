@@ -16,6 +16,7 @@ import { assignPartIndices } from "@/lib/documents";
 import { PageSizeOption } from "@/lib/exportPdf";
 import { CropRect } from "@/lib/crop";
 import { CropModal } from "@/components/CropModal";
+import { LoupeOverlay } from "@/components/Loupe";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -43,6 +44,7 @@ import {
   Layers,
   Bookmark,
   Crop,
+  ZoomIn,
 } from "lucide-react";
 import JSZip from "jszip";
 
@@ -99,6 +101,11 @@ export const DocumentAssembler: React.FC = () => {
 
   // Rename dialog
   const [cropItemId, setCropItemId] = useState<string | null>(null);
+  // Grid loupe: hold the magnifier button on a card to inspect it.
+  const [loupe, setLoupe] = useState<
+    { id: string; x: number; y: number; zoom: number; w: number; h: number } | null
+  >(null);
+  const loupeBtns = useRef<Map<string, HTMLButtonElement>>(new Map());
   const [renamingItemId, setRenamingItemId] = useState<string | null>(null);
   const [newPartName, setNewPartName] = useState("");
   const [isRenameOpen, setIsRenameOpen] = useState(false);
@@ -355,6 +362,28 @@ export const DocumentAssembler: React.FC = () => {
     document.body.removeChild(link);
   };
 
+  // Wheel adjusts loupe zoom; native listener so preventDefault works.
+  useEffect(() => {
+    if (!loupe) return;
+    const btn = loupeBtns.current.get(loupe.id);
+    if (!btn) return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      setLoupe((l) =>
+        l
+          ? {
+              ...l,
+              zoom: Math.min(8, Math.max(1.5, l.zoom * (e.deltaY < 0 ? 1.2 : 1 / 1.2))),
+            }
+          : l
+      );
+    };
+    btn.addEventListener("wheel", onWheel, { passive: false });
+    return () => btn.removeEventListener("wheel", onWheel);
+    // zoom lives in the setter callback; re-binding only on card change is intended
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loupe?.id]);
+
   const liveCount = items.length - deletedCount;
 
   return (
@@ -520,8 +549,13 @@ export const DocumentAssembler: React.FC = () => {
                       const gapAfterEnd =
                         dropTarget === items.length && index === items.length - 1;
 
+                      const loupeSurfaceOf = (el: HTMLElement) =>
+                        el.closest("[data-card]")?.querySelector("[data-loupe-surface]") as
+                          | HTMLElement
+                          | null;
+
                       return (
-                        <div key={item.id} className="relative group">
+                        <div key={item.id} className="relative group" data-card>
                           {/* Insertion gap indicator — glowing bar at the drop gap */}
                           {draggingIndex !== null && gapBefore && (
                             <div className="absolute -left-3 top-0 bottom-0 w-1.5 rounded-full bg-primary glow-primary z-30 pointer-events-none animate-pulse" />
@@ -542,7 +576,9 @@ export const DocumentAssembler: React.FC = () => {
                             } ${isDragging ? "opacity-30 grayscale scale-95 ring-2 ring-primary/60 border-dashed" : ""} ${
                               gapBefore ? "-translate-x-1.5" : ""
                             } ${gapAfterEnd ? "translate-x-1.5" : ""}`}>
-                            <div className="aspect-[1/1.4] relative bg-background/60">
+                            <div
+                              data-loupe-surface
+                              className="aspect-[1/1.4] relative bg-background/60">
                               <Image
                                 src={item.thumbnailUrl}
                                 alt={item.label}
@@ -551,6 +587,16 @@ export const DocumentAssembler: React.FC = () => {
                                 unoptimized
                                 className="object-contain p-2"
                               />
+                              {loupe?.id === item.id && (
+                                <LoupeOverlay
+                                  src={item.thumbnailUrl}
+                                  displayW={loupe.w}
+                                  displayH={loupe.h}
+                                  x={loupe.x}
+                                  y={loupe.y}
+                                  zoom={loupe.zoom}
+                                />
+                              )}
                             </div>
 
                             <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors pointer-events-none" />
@@ -589,6 +635,47 @@ export const DocumentAssembler: React.FC = () => {
                                 title="Crop this page"
                                 aria-label="Crop this page">
                                 <Crop size={16} />
+                              </Button>
+                            )}
+
+                            {/* Inspect (hold) — loupe follows the cursor, wheel zooms */}
+                            {!isShaded && (
+                              <Button
+                                ref={(el) => {
+                                  if (el) loupeBtns.current.set(item.id, el);
+                                  else loupeBtns.current.delete(item.id);
+                                }}
+                                className="absolute bottom-12 left-2 h-8 w-8 rounded-full p-0 glass border border-white/15 text-foreground hover:text-primary hover:border-primary opacity-0 group-hover:opacity-100 transition-all duration-200"
+                                onPointerDown={(e) => {
+                                  e.stopPropagation();
+                                  e.preventDefault();
+                                  const surf = loupeSurfaceOf(e.currentTarget);
+                                  if (!surf) return;
+                                  const r = surf.getBoundingClientRect();
+                                  e.currentTarget.setPointerCapture(e.pointerId);
+                                  setLoupe({
+                                    id: item.id,
+                                    x: e.clientX - r.left,
+                                    y: e.clientY - r.top,
+                                    zoom: 3,
+                                    w: r.width,
+                                    h: r.height,
+                                  });
+                                }}
+                                onPointerMove={(e) => {
+                                  setLoupe((l) => {
+                                    if (!l || l.id !== item.id) return l;
+                                    const surf = loupeSurfaceOf(e.currentTarget);
+                                    if (!surf) return l;
+                                    const r = surf.getBoundingClientRect();
+                                    return { ...l, x: e.clientX - r.left, y: e.clientY - r.top };
+                                  });
+                                }}
+                                onPointerUp={() => setLoupe(null)}
+                                onPointerCancel={() => setLoupe(null)}
+                                title="Hold to inspect · scroll to zoom"
+                                aria-label="Inspect page">
+                                <ZoomIn size={16} />
                               </Button>
                             )}
 
