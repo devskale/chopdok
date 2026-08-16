@@ -814,9 +814,12 @@ export const DocumentAssembler: React.FC = () => {
 
       {/* Page viewer modal */}
       <PageViewerModal
+        key={viewerItemId ?? "none"}
         item={items.find((i) => i.id === viewerItemId) ?? null}
         open={!!viewerItemId}
         onOpenChange={(o) => !o && setViewerItemId(null)}
+        note={viewerItemId ? edits[viewerItemId]?.note : undefined}
+        onSaveNote={(id, note) => setItemNote(id, note)}
       />
 
       {/* Crop dialog */}
