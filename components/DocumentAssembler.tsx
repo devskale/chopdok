@@ -679,7 +679,7 @@ export const DocumentAssembler: React.FC = () => {
                               <Button
                                 className={`absolute bottom-12 left-2 h-8 w-8 rounded-full p-0 transition-all duration-200 ${
                                   isInspecting
-                                    ? "opacity-100 bg-primary border border-primary text-primary-foreground glow-primary"
+                                    ? "opacity-100 z-20 bg-primary border border-primary text-primary-foreground glow-primary"
                                     : "glass border border-white/15 text-foreground hover:text-primary hover:border-primary opacity-0 group-hover:opacity-100"
                                 }`}
                                 onClick={() => {
@@ -687,8 +687,22 @@ export const DocumentAssembler: React.FC = () => {
                                     setInspectId(null);
                                     setLoupe(null);
                                   } else {
-                                    setInspectId(item.id); // lens appears at the first cursor move
-                                    setLoupe(null);
+                                    setInspectId(item.id);
+                                    // seed the lens at the card's center so it is
+                                    // visible the instant the mode turns on
+                                    const surf = cardRefs.current
+                                      .get(item.id)
+                                      ?.querySelector("[data-loupe-surface]");
+                                    if (surf) {
+                                      const r = surf.getBoundingClientRect();
+                                      setLoupe({
+                                        x: r.width / 2,
+                                        y: r.height / 2,
+                                        zoom: 3,
+                                        w: r.width,
+                                        h: r.height,
+                                      });
+                                    }
                                   }
                                 }}
                                 title={isInspecting ? "Stop inspecting (Esc)" : "Inspect — magnifier follows the cursor, wheel zooms"}
