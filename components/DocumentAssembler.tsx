@@ -15,8 +15,7 @@ import {
 import { assignPartIndices } from "@/lib/documents";
 import { PageSizeOption } from "@/lib/exportPdf";
 import { CropRect } from "@/lib/crop";
-import { CropModal } from "@/components/CropModal";
-import { PageViewerModal } from "@/components/PageViewerModal";
+import { EditModal } from "@/components/EditModal";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -103,9 +102,9 @@ export const DocumentAssembler: React.FC = () => {
   const [isZipDownloaded, setIsZipDownloaded] = useState(false);
 
   // Rename dialog
-  const [cropItemId, setCropItemId] = useState<string | null>(null);
-  // Page viewer: the card's magnifier opens the page in a large modal with a lens.
-  const [viewerItemId, setViewerItemId] = useState<string | null>(null);
+  // First-class edit modal: crop + magnifier + notes at once.
+  // Both the pencil and the magnifier icons open it.
+  const [editItemId, setEditItemId] = useState<string | null>(null);
   const [renamingItemId, setRenamingItemId] = useState<string | null>(null);
   const [newPartName, setNewPartName] = useState("");
   const [isRenameOpen, setIsRenameOpen] = useState(false);
@@ -314,7 +313,7 @@ export const DocumentAssembler: React.FC = () => {
     setDownloaded(new Set());
     setIsZipDownloaded(false);
     setThumbnailSize(2);
-    setViewerItemId(null);
+    setEditItemId(null);
     clearDragState();
     const input = document.getElementById("file-upload") as HTMLInputElement | null;
     if (input) input.value = "";
@@ -603,8 +602,8 @@ export const DocumentAssembler: React.FC = () => {
                             {!isShaded && (
                               <Button
                                 className="absolute top-2 right-2 h-8 w-8 rounded-full p-0 glass border border-white/15 text-foreground hover:text-primary hover:border-primary opacity-0 group-hover:opacity-100 transition-all duration-200"
-                                onClick={() => setCropItemId(item.id)}
-                                title="Edit page — crop, magnify, notes"
+                                onClick={() => setEditItemId(item.id)}
+                                title="Edit page — crop, magnifier, notes"
                                 aria-label="Edit page">
                                 <Pencil size={16} />
                               </Button>
@@ -614,9 +613,9 @@ export const DocumentAssembler: React.FC = () => {
                             {!isShaded && (
                               <Button
                                 className="absolute bottom-12 left-2 h-8 w-8 rounded-full p-0 glass border border-white/15 text-foreground hover:text-primary hover:border-primary opacity-0 group-hover:opacity-100 transition-all duration-200"
-                                onClick={() => setViewerItemId(item.id)}
-                                title="View page — large preview with magnifier"
-                                aria-label="View page with magnifier">
+                                onClick={() => setEditItemId(item.id)}
+                                title="Edit page — crop, magnifier, notes"
+                                aria-label="Edit page">
                                 <ZoomIn size={16} />
                               </Button>
                             )}
@@ -812,27 +811,17 @@ export const DocumentAssembler: React.FC = () => {
         </div>
       )}
 
-      {/* Page viewer modal */}
-      <PageViewerModal
-        key={viewerItemId ?? "none"}
-        item={items.find((i) => i.id === viewerItemId) ?? null}
-        open={!!viewerItemId}
-        onOpenChange={(o) => !o && setViewerItemId(null)}
-        note={viewerItemId ? edits[viewerItemId]?.note : undefined}
-        onSaveNote={(id, note) => setItemNote(id, note)}
-      />
-
-      {/* Crop dialog */}
-      <CropModal
-        key={cropItemId ?? "none"}
-        item={items.find((i) => i.id === cropItemId) ?? null}
-        open={!!cropItemId}
-        onOpenChange={(o) => !o && setCropItemId(null)}
-        onApply={(id, rect: CropRect, keep) => {
+      {/* First-class edit modal — crop + magnifier + notes at once */}
+      <EditModal
+        key={editItemId ?? "none"}
+        item={items.find((i) => i.id === editItemId) ?? null}
+        open={!!editItemId}
+        onOpenChange={(o) => !o && setEditItemId(null)}
+        onApplyCrop={(id, rect: CropRect, keep) => {
           void cropItem(id, rect, keep);
-          setCropItemId(null);
+          setEditItemId(null);
         }}
-        note={cropItemId ? edits[cropItemId]?.note : undefined}
+        note={editItemId ? edits[editItemId]?.note : undefined}
         onSaveNote={(id, note) => setItemNote(id, note)}
       />
 
