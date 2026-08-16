@@ -16,8 +16,7 @@ import { assignPartIndices } from "@/lib/documents";
 import { PageSizeOption } from "@/lib/exportPdf";
 import { CropRect } from "@/lib/crop";
 import { CropModal } from "@/components/CropModal";
-import { LoupeLens } from "@/components/Loupe";
-import { hiResSource } from "@/lib/crop";
+import { PageViewerModal } from "@/components/PageViewerModal";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -105,14 +104,8 @@ export const DocumentAssembler: React.FC = () => {
 
   // Rename dialog
   const [cropItemId, setCropItemId] = useState<string | null>(null);
-  // Grid loupe: imperative lens — hi-res source, rAF-throttled DOM updates,
-  // no per-move React renders. inspectId selects the card; loupeSrc is the
-  // hi-res bitmap (loaded on demand); loupeSurface anchors the zoom math.
-  const [inspectId, setInspectId] = useState<string | null>(null);
-  const [loupeSrc, setLoupeSrc] = useState<string | null>(null);
-  const [loupeNatural, setLoupeNatural] = useState<{ w: number; h: number } | null>(null);
-  const [loupeSurface, setLoupeSurface] = useState<HTMLElement | null>(null);
-  const cardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  // Page viewer: the card's magnifier opens the page in a large modal with a lens.
+  const [viewerItemId, setViewerItemId] = useState<string | null>(null);
   const [renamingItemId, setRenamingItemId] = useState<string | null>(null);
   const [newPartName, setNewPartName] = useState("");
   const [isRenameOpen, setIsRenameOpen] = useState(false);
@@ -321,9 +314,7 @@ export const DocumentAssembler: React.FC = () => {
     setDownloaded(new Set());
     setIsZipDownloaded(false);
     setThumbnailSize(2);
-    setInspectId(null);
-    setLoupeSrc(null);
-    setLoupeSurface(null);
+    setViewerItemId(null);
     clearDragState();
     const input = document.getElementById("file-upload") as HTMLInputElement | null;
     if (input) input.value = "";
@@ -371,20 +362,6 @@ export const DocumentAssembler: React.FC = () => {
     link.click();
     document.body.removeChild(link);
   };
-
-  // Esc exits inspection; Clear All resets it.
-  useEffect(() => {
-    if (!inspectId) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        setInspectId(null);
-        setLoupeSrc(null);
-        setLoupeSurface(null);
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [inspectId]);
 
   const liveCount = items.length - deletedCount;
 
@@ -551,18 +528,8 @@ export const DocumentAssembler: React.FC = () => {
                       const gapAfterEnd =
                         dropTarget === items.length && index === items.length - 1;
 
-                      const isInspecting = inspectId === item.id;
-
                       return (
-                        <div
-                          key={item.id}
-                          className="relative group"
-                          data-card
-                          ref={(el) => {
-                            if (el) cardRefs.current.set(item.id, el);
-                            else cardRefs.current.delete(item.id);
-                          }}
-                          style={isInspecting ? { cursor: "none" } : undefined}>
+                        <div key={item.id} className="relative group" data-card>
                           {/* Insertion gap indicator — glowing bar at the drop gap */}
                           {draggingIndex !== null && gapBefore && (
                             <div className="absolute -left-3 top-0 bottom-0 w-1.5 rounded-full bg-primary glow-primary z-30 pointer-events-none animate-pulse" />
@@ -572,12 +539,8 @@ export const DocumentAssembler: React.FC = () => {
                           )}
 
                           <div
-                            draggable={!isInspecting}
+                            draggable
                             onDragStart={(e) => {
-                              if (isInspecting) {
-                                e.preventDefault();
-                                return;
-                              }
                               handleCardDragStart(index);
                               e.dataTransfer.effectAllowed = "move";
                             }}
@@ -589,8 +552,7 @@ export const DocumentAssembler: React.FC = () => {
                             } ${gapAfterEnd ? "translate-x-1.5" : ""}`}>
                             <div
                               data-loupe-surface
-                              className="aspect-[1/1.4] relative bg-background/60"
-                              style={isInspecting ? { cursor: "none" } : undefined}>
+                              className="aspect-[1/1.4] relative bg-background/60">
                               <Image
                                 src={item.thumbnailUrl}
                                 alt={item.label}
@@ -648,40 +610,13 @@ export const DocumentAssembler: React.FC = () => {
                               </Button>
                             )}
 
-                            {/* Inspect (toggle) — loupe follows the cursor, wheel zooms, Esc exits */}
+                            {/* View (magnifier) — opens the page in a large viewer with a lens */}
                             {!isShaded && (
                               <Button
-                                className={`absolute bottom-12 left-2 h-8 w-8 rounded-full p-0 transition-all duration-200 ${
-                                  isInspecting
-                                    ? "opacity-100 z-20 bg-primary border border-primary text-primary-foreground glow-primary"
-                                    : "glass border border-white/15 text-foreground hover:text-primary hover:border-primary opacity-0 group-hover:opacity-100"
-                                }`}
-                                onClick={() => {
-                                  if (isInspecting) {
-                                    setInspectId(null);
-                                    setLoupeSrc(null);
-                                    setLoupeSurface(null);
-                                    return;
-                                  }
-                                  setInspectId(item.id);
-                                  const surf = (cardRefs.current
-                                    .get(item.id)
-                                    ?.querySelector("[data-loupe-surface]") ?? null) as HTMLElement | null;
-                                  setLoupeSurface(surf);
-                                  // preview first (instant), swap to hi-res when ready
-                                  setLoupeSrc(item.thumbnailUrl);
-                                  setLoupeNatural({ w: item.width, h: item.height });
-                                  void hiResSource(item).then((src) => {
-                                    setLoupeSrc((cur) => (cur === item.thumbnailUrl ? src : cur));
-                                    const img = new window.Image();
-                                    img.onload = () =>
-                                      setLoupeNatural({ w: img.naturalWidth, h: img.naturalHeight });
-                                    img.src = src;
-                                  });
-                                }}
-                                title={isInspecting ? "Stop inspecting (Esc)" : "Inspect — magnifier follows the cursor, wheel zooms"}
-                                aria-label={isInspecting ? "Stop inspecting page" : "Inspect page"}
-                                aria-pressed={isInspecting}>
+                                className="absolute bottom-12 left-2 h-8 w-8 rounded-full p-0 glass border border-white/15 text-foreground hover:text-primary hover:border-primary opacity-0 group-hover:opacity-100 transition-all duration-200"
+                                onClick={() => setViewerItemId(item.id)}
+                                title="View page — large preview with magnifier"
+                                aria-label="View page with magnifier">
                                 <ZoomIn size={16} />
                               </Button>
                             )}
@@ -877,21 +812,12 @@ export const DocumentAssembler: React.FC = () => {
         </div>
       )}
 
-      {/* Grid loupe (imperative, portaled) */}
-      {inspectId && loupeSrc && loupeSurface && loupeNatural && (
-        <LoupeLens
-          key={inspectId}
-          src={loupeSrc}
-          surface={loupeSurface}
-          naturalW={loupeNatural.w}
-          naturalH={loupeNatural.h}
-          onExit={() => {
-            setInspectId(null);
-            setLoupeSrc(null);
-            setLoupeSurface(null);
-          }}
-        />
-      )}
+      {/* Page viewer modal */}
+      <PageViewerModal
+        item={items.find((i) => i.id === viewerItemId) ?? null}
+        open={!!viewerItemId}
+        onOpenChange={(o) => !o && setViewerItemId(null)}
+      />
 
       {/* Crop dialog */}
       <CropModal
