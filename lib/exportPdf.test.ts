@@ -5,7 +5,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { PDFDocument, PDFDict, PDFName } from "pdf-lib";
 import { exportPdf } from "./exportPdf";
-import { deriveSplitUnits, DocumentItem, ItemEdits } from "./documents";
+import { deriveParts, DocumentItem, ItemEdits } from "./documents";
 
 /** TS6: File needs a plain ArrayBuffer, not ArrayBufferLike. */
 const buf = (u: Uint8Array): ArrayBuffer =>
@@ -125,40 +125,29 @@ describe("exportPdf", () => {
   });
 });
 
-describe("exportPdf + deriveSplitUnits (the split path)", () => {
-  it("index boundaries do NOT cut; split boundaries do", async () => {
+describe("exportPdf + deriveParts (segments are virtual; export picks granularity)", () => {
+  it("segments define ranges; ANY segment can export alone", async () => {
     const src = await makePdf(4);
     const items = [pdfItem(src, 0), pdfItem(src, 1), pdfItem(src, 2), pdfItem(src, 3)];
     const edits: ItemEdits = {
-      p1: { deleted: false, boundary: "index", name: "Intro" }, // virtual
-      p3: { deleted: false, boundary: "split", name: "Part Two" }, // real cut
+      p1: { deleted: false, segmentStart: true, name: "Intro" },
+      p3: { deleted: false, segmentStart: true, name: "Part Two" },
     };
-    const units = deriveSplitUnits(items, edits);
-    expect(units).toHaveLength(2);
-    expect(units[0].items).toHaveLength(2);
-    expect(units[0].segments.map((s) => s.name)).toEqual(["Intro"]);
-    expect(units[1].name).toBe("Part Two");
+    const parts = deriveParts(items, edits);
+    expect(parts).toHaveLength(2);
 
-    const partPdfs: number[] = [];
-    for (const unit of units) {
-      const bytes = await exportPdf(unit.items);
-      partPdfs.push((await PDFDocument.load(bytes)).getPageCount());
+    // checkout: one file
+    const one = await PDFDocument.load(await exportPdf(items));
+    expect(one.getPageCount()).toBe(4);
+    // checkout: this segment
+    const seg = await PDFDocument.load(await exportPdf(parts[1].items, { title: parts[1].name }));
+    expect(seg.getPageCount()).toBe(2);
+    // checkout: every segment
+    const counts: number[] = [];
+    for (const part of parts) {
+      counts.push((await PDFDocument.load(await exportPdf(part.items))).getPageCount());
     }
-    expect(partPdfs).toEqual([2, 2]);
-  });
-
-  it("splitting a MIXED document (pdf pages + images) into units", async () => {
-    const src = await makePdf(2);
-    const items = [pdfItem(src, 0), pngItem(), pdfItem(src, 1), jpgItem()];
-    const edits: ItemEdits = { g2: { deleted: false, boundary: "split" } };
-    const units = deriveSplitUnits(items, edits);
-    expect(units).toHaveLength(2);
-
-    const a = await PDFDocument.load(await exportPdf(units[0].items));
-    const b = await PDFDocument.load(await exportPdf(units[1].items));
-    expect(a.getPageCount()).toBe(1);
-    expect(b.getPageCount()).toBe(3);
-    expect(b.getPage(0).getWidth()).toBe(1); // image first in unit 2
+    expect(counts).toEqual([2, 2]);
   });
 });
 

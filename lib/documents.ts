@@ -69,14 +69,12 @@ export function removeItems(items: DocumentItem[], indices: number[]): DocumentI
 // not a positional index array. A segment's identity is the id of its first
 // LIVE item, so names survive reorder (generalizes the old #4 startPage fix).
 
-/** A segment boundary. "index" is virtual (bookmarks only); "split" cuts. */
-export type Boundary = "index" | "split";
-
 export interface ItemEditState {
   /** Shaded out — excluded from export but stays visible in the grid. */
   deleted: boolean;
-  /** This item begins a new segment. index = virtual/bookmark, split = real cut. */
-  boundary?: Boundary;
+  /** This item begins a new segment. ALL segments are virtual — the export
+   *  granularity (one PDF / one segment / every segment) is chosen at checkout. */
+  segmentStart?: boolean;
   /** Custom segment name (shown in summary + becomes the PDF bookmark title). */
   name?: string;
 }
@@ -92,8 +90,6 @@ export interface Part {
   index: number;
   /** Custom name (carried across deleted boundary items), if any. */
   name?: string;
-  /** Kind of the boundary that started this part (undefined = implicit first). */
-  boundary?: Boundary;
   /** Live (non-deleted) items, in order. */
   items: DocumentItem[];
 }
@@ -142,14 +138,12 @@ export function deriveDocRuns(items: DocumentItem[]): DocRun[] {
 export function deriveParts(items: DocumentItem[], edits: ItemEdits = {}): Part[] {
   const parts: Part[] = [];
   let pendingBoundary = false;
-  let pendingKind: Boundary | undefined;
   let pendingName: string | undefined;
 
   for (const item of items) {
     const e = editOf(edits, item.id);
-    if (e.boundary) {
+    if (e.segmentStart) {
       pendingBoundary = true;
-      pendingKind = e.boundary;
       if (e.name) pendingName = e.name; // newest boundary's name wins while pending
     }
     if (e.deleted) continue;
@@ -160,13 +154,11 @@ export function deriveParts(items: DocumentItem[], edits: ItemEdits = {}): Part[
         startItemId: item.id,
         index: parts.length + 1,
         // The implicit first part may carry its name on its own edit
-        // (e.g. auto-named after the source file) without a boundary marker.
+        // (e.g. auto-named after the source file) without a segmentStart marker.
         name: pendingName ?? (implicitFirst ? e.name : undefined),
-        boundary: pendingBoundary ? pendingKind : undefined,
         items: [item],
       });
       pendingBoundary = false;
-      pendingKind = undefined;
       pendingName = undefined;
     } else {
       parts[parts.length - 1].items.push(item);
@@ -187,7 +179,7 @@ export function assignPartIndices(items: DocumentItem[], edits: ItemEdits = {}):
 
   items.forEach((item, i) => {
     const e = editOf(edits, item.id);
-    if (e.boundary) pendingBoundary = true;
+    if (e.segmentStart) pendingBoundary = true;
     if (e.deleted) {
       result[i] = Math.max(current, 0);
       return;
@@ -199,71 +191,4 @@ export function assignPartIndices(items: DocumentItem[], edits: ItemEdits = {}):
     result[i] = current;
   });
   return result;
-}
-
-// ---- Split units (physical export) ----
-//
-// "split" boundaries cut the document into real PDFs; "index" boundaries stay
-// INSIDE a unit and become that PDF's bookmarks. Mirrors deriveParts semantics
-// (deleted boundaries carry; fully-deleted units vanish).
-
-export interface SplitSegment {
-  name?: string;
-  startItemId: string;
-  items: DocumentItem[];
-}
-
-export interface SplitUnit {
-  name?: string;
-  startItemId: string;
-  /** All live items of this unit, in order (the physical PDF's pages). */
-  items: DocumentItem[];
-  /** Index segments nested inside this unit (the PDF's bookmarks). */
-  segments: SplitSegment[];
-}
-
-export function deriveSplitUnits(items: DocumentItem[], edits: ItemEdits = {}): SplitUnit[] {
-  const units: SplitUnit[] = [];
-  let pendingSplit = false;
-  let pendingSplitName: string | undefined;
-  let pendingIndex = false;
-  let pendingIndexName: string | undefined;
-
-  for (const item of items) {
-    const e = editOf(edits, item.id);
-    if (e.boundary === "split") {
-      pendingSplit = true;
-      if (e.name) pendingSplitName = e.name;
-      // A split supersedes a pending index boundary at the same edge.
-      pendingIndex = false;
-      pendingIndexName = undefined;
-    } else if (e.boundary === "index") {
-      pendingIndex = true;
-      if (e.name) pendingIndexName = e.name;
-    }
-    if (e.deleted) continue;
-
-    if (units.length === 0 || pendingSplit) {
-      units.push({
-        name: pendingSplitName,
-        startItemId: item.id,
-        items: [item],
-        segments: [],
-      });
-      pendingSplit = false;
-      pendingSplitName = undefined;
-    } else {
-      units[units.length - 1].items.push(item);
-    }
-
-    const unit = units[units.length - 1];
-    if (pendingIndex) {
-      unit.segments.push({ name: pendingIndexName, startItemId: item.id, items: [item] });
-      pendingIndex = false;
-      pendingIndexName = undefined;
-    } else if (unit.segments.length) {
-      unit.segments[unit.segments.length - 1].items.push(item);
-    }
-  }
-  return units;
 }

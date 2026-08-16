@@ -12,7 +12,7 @@ import {
   useDocumentAssembler,
   DocumentAssemblerHook,
 } from "@/lib/useDocumentAssembler";
-import { assignPartIndices, deriveDocRuns, DocRun } from "@/lib/documents";
+import { assignPartIndices } from "@/lib/documents";
 import { PageSizeOption } from "@/lib/exportPdf";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -73,10 +73,11 @@ export const DocumentAssembler: React.FC = () => {
     addFiles,
     move,
     toggleDeleted,
-    setBoundary,
+    toggleSegmentStart,
     setSegmentName,
     exportAssembledPdf,
-    exportSplitParts,
+    exportSegmentPdfs,
+    exportSegmentPdf,
     clearAll,
   }: DocumentAssemblerHook = useDocumentAssembler();
 
@@ -117,8 +118,6 @@ export const DocumentAssembler: React.FC = () => {
 
   // Per-item segment index for tinting/labels (includes deleted items).
   const partIndices = useMemo(() => assignPartIndices(items, edits), [items, edits]);
-  // Source-document runs -> bordered groups in the grid (recomputed on reorder).
-  const docRuns = useMemo(() => deriveDocRuns(items), [items]);
   const partByStart = useMemo(() => {
     const map = new Map<string, (typeof parts)[number]>();
     for (const p of parts) map.set(p.startItemId, p);
@@ -220,18 +219,32 @@ export const DocumentAssembler: React.FC = () => {
     }
   };
 
-  const handleSplitParts = async () => {
+  const handleExportSegments = async () => {
     setIsExporting(true);
     try {
-      const pdfs = await exportSplitParts({ pageSize });
+      const pdfs = await exportSegmentPdfs({ pageSize });
       replaceResults(
         pdfs.map((bytes, i) => {
           const name = parts[i]?.name;
-          return pdfFile(bytes, `Part ${i + 1}${name ? ` - ${name}` : ""}.pdf`);
+          return pdfFile(bytes, `${name || `Segment ${i + 1}`}.pdf`);
         })
       );
     } catch (err) {
-      console.error("Split failed:", err);
+      console.error("Segment export failed:", err);
+      replaceResults([]);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleExportSegment = async (startItemId: string) => {
+    setIsExporting(true);
+    try {
+      const part = parts.find((p) => p.startItemId === startItemId);
+      const bytes = await exportSegmentPdf(startItemId, { pageSize });
+      replaceResults([pdfFile(bytes, `${part?.name || "Segment"}.pdf`)]);
+    } catch (err) {
+      console.error("Segment export failed:", err);
       replaceResults([]);
     } finally {
       setIsExporting(false);
@@ -455,32 +468,22 @@ export const DocumentAssembler: React.FC = () => {
             </div>
           </div>
 
-          {/* Grid */}
+          {/* Grid — one continuous document: segments differ by tint,
+              the label bar names them, the bookmark splits them virtually */}
           <div
             ref={scrollContainerRef}
             className="overflow-y-auto max-h-[600px] p-4 rounded-2xl bg-background/30">
-            <div className="space-y-6">
-              {docRuns.map((run: DocRun) => (
-                <div
-                  key={run.startIndex}
-                  className="rounded-xl border border-border/40 p-2.5 space-y-2.5">
-                  <div className="px-1">
-                    <span className="text-[11px] font-medium text-muted-foreground/70 truncate">
-                      {run.file.name}
-                    </span>
-                  </div>
-                  <div className={`grid ${gridCols} gap-5`}>
-                    {items.slice(run.startIndex, run.startIndex + run.length).map((item, localIdx) => {
-                      const index = run.startIndex + localIdx;
-                      const edit = edits[item.id];
-                      const isShaded = !!edit?.deleted;
-                      const partIdx = partIndices[index];
-                      const sectionColor = sectionTints[partIdx % sectionTints.length];
-                      const part = partByStart.get(item.id);
-                      const isPartStart = !!part;
+            <div className={`grid ${gridCols} gap-5`}>
+              {items.map((item, index) => {
+                const edit = edits[item.id];
+                const isShaded = !!edit?.deleted;
+                const partIdx = partIndices[index];
+                const sectionColor = sectionTints[partIdx % sectionTints.length];
+                const part = partByStart.get(item.id);
+                const isPartStart = !!part;
                       const displayPartName = part?.name ?? `Part ${(partIdx ?? 0) + 1}`;
                       const nextEdit = items[index + 1] ? edits[items[index + 1].id] : undefined;
-                      const nextBoundary = nextEdit?.boundary; // boundary on the FOLLOWING item
+                      const nextSegmentStart = !!nextEdit?.segmentStart; // on the FOLLOWING item
                       const isDragging = draggingIndex === index;
                       const gapBefore = dropTarget === index;
                       const gapAfterEnd =
@@ -565,80 +568,49 @@ export const DocumentAssembler: React.FC = () => {
                             </Button>
                           </div>
 
-                          {/* Boundary controls — act on the gap AFTER this card:
-                              ✂ split = real cut into separate PDFs
-                              🔖 index = virtual segment (bookmark only, no cut)
-                              clicking an active control removes it (merge) */}
+                          {/* Segment boundary — toggle on the gap AFTER this card.
+                              Segments are virtual: they structure + name the doc;
+                              granularity is chosen at checkout. */}
                           {index < items.length - 1 && (
-                            <div className="absolute top-1/2 -right-2.5 z-10 -mt-6 flex flex-col gap-1">
-                              {([
-                                {
-                                  kind: "split" as const,
-                                  icon: <Scissors size={11} />,
-                                  label:
-                                    nextBoundary === "split"
-                                      ? `Remove split before item ${index + 2}`
-                                      : `Split before item ${index + 2}`,
-                                  active: nextBoundary === "split",
-                                  activeCls:
-                                    "bg-primary border-primary text-primary-foreground glow-primary",
-                                },
-                                {
-                                  kind: "index" as const,
-                                  icon: <Bookmark size={11} />,
-                                  label:
-                                    nextBoundary === "index"
-                                      ? `Remove index segment before item ${index + 2}`
-                                      : `Index segment before item ${index + 2}`,
-                                  active: nextBoundary === "index",
-                                  activeCls: "bg-cyan-500 border-cyan-500 text-white",
-                                },
-                              ] as const).map((c) => (
-                                <div
-                                  key={c.kind}
-                                  role="button"
-                                  tabIndex={0}
-                                  aria-label={c.label}
-                                  title={c.label}
-                                  className={`w-5 h-5 cursor-pointer rounded-full transition-all duration-200 hover:scale-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary
-                                              ${
-                                                c.active
-                                                  ? "opacity-100"
-                                                  : "opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
-                                              }`}
-                                  onClick={() =>
-                                    setBoundary(
-                                      items[index + 1].id,
-                                      nextBoundary === c.kind ? null : c.kind
-                                    )
-                                  }
-                                  onKeyDown={(e) => {
-                                    if (e.key === "Enter" || e.key === " ") {
-                                      e.preventDefault();
-                                      setBoundary(
-                                        items[index + 1].id,
-                                        nextBoundary === c.kind ? null : c.kind
-                                      );
-                                    }
-                                  }}>
-                                  <div
-                                    className={`w-full h-full rounded-full grid place-items-center border transition-colors ${
-                                      c.active
-                                        ? c.activeCls
-                                        : "glass border-border text-muted-foreground hover:text-primary hover:border-primary"
-                                    }`}>
-                                    {c.icon}
-                                  </div>
-                                </div>
-                              ))}
+                            <div
+                              role="button"
+                              tabIndex={0}
+                              aria-label={
+                                nextSegmentStart
+                                  ? `Merge segments at item ${index + 2}`
+                                  : `New segment at item ${index + 2}`
+                              }
+                              title={
+                                nextSegmentStart
+                                  ? "Merge segments (remove boundary)"
+                                  : "Start a new segment here"
+                              }
+                              className={`absolute top-1/2 -right-2.5 z-10 -mt-3 w-6 h-6 cursor-pointer rounded-full transition-all duration-200 hover:scale-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary
+                                          ${
+                                            nextSegmentStart
+                                              ? "opacity-100"
+                                              : "opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+                                          }`}
+                              onClick={() => toggleSegmentStart(items[index + 1].id)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" || e.key === " ") {
+                                  e.preventDefault();
+                                  toggleSegmentStart(items[index + 1].id);
+                                }
+                              }}>
+                              <div
+                                className={`w-full h-full rounded-full grid place-items-center border transition-colors ${
+                                  nextSegmentStart
+                                    ? "bg-cyan-500 border-cyan-500 text-white"
+                                    : "glass border-border text-muted-foreground hover:text-cyan-400 hover:border-cyan-400"
+                                }`}>
+                                <Bookmark size={12} />
+                              </div>
                             </div>
                           )}
                         </div>
                       );
                     })}
-                  </div>
-                </div>
-              ))}
             </div>
           </div>
         </div>
@@ -671,13 +643,6 @@ export const DocumentAssembler: React.FC = () => {
                   key={part.startItemId}
                   className="flex items-center justify-between py-3 first:pt-0 last:pb-0 gap-3">
                   <div className="flex items-center gap-3 min-w-0">
-                    {part.boundary === "split" ? (
-                      <Scissors size={13} className="text-primary shrink-0" aria-label="split" />
-                    ) : part.boundary === "index" ? (
-                      <Bookmark size={13} className="text-cyan-400 shrink-0" aria-label="index" />
-                    ) : (
-                      <Layers size={13} className="text-muted-foreground shrink-0" aria-label="start" />
-                    )}
                     <button
                       className="font-medium text-foreground truncate hover:text-primary transition-colors"
                       onClick={() => openRename(part.startItemId, part.name || `Part ${part.index}`)}
@@ -685,29 +650,41 @@ export const DocumentAssembler: React.FC = () => {
                       {part.name || `Part ${part.index}`}
                     </button>
                   </div>
-                  <span className="text-xs bg-secondary/60 border border-border/60 px-2 py-1 rounded-md text-muted-foreground font-mono shrink-0">
-                    {part.items.length} item{part.items.length === 1 ? "" : "s"}
-                  </span>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-xs bg-secondary/60 border border-border/60 px-2 py-1 rounded-md text-muted-foreground font-mono">
+                      {part.items.length} item{part.items.length === 1 ? "" : "s"}
+                    </span>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-7 w-7"
+                      disabled={isExporting || isBusy}
+                      onClick={() => handleExportSegment(part.startItemId)}
+                      title="Export this segment as a PDF"
+                      aria-label={`Export ${part.name || `Part ${part.index}`} as PDF`}>
+                      <Download size={13} />
+                    </Button>
+                  </div>
                 </div>
               ))}
             </div>
 
             <div className="flex flex-wrap justify-end gap-3 pt-4 border-t border-border/60">
               <Button
-                onClick={handleSplitParts}
+                onClick={handleExportSegments}
                 size="lg"
                 variant="outline"
                 disabled={isExporting || isBusy}
-                title="Cut at ✂ boundaries into separate PDFs (🔖 segments become bookmarks)">
-                <Scissors className="mr-2 h-4 w-4" />
-                Split &amp; download
+                title="Every segment as its own PDF">
+                <Archive className="mr-2 h-4 w-4" />
+                Every segment
               </Button>
               <Button
                 onClick={handleAssemble}
                 size="lg"
                 className="glow-primary"
                 disabled={isExporting || isBusy}
-                title="One PDF; named segments become its bookmark index">
+                title="One PDF — segments become its bookmark index">
                 {isExporting ? (
                   <Layers className="mr-2 h-4 w-4 animate-pulse" />
                 ) : (

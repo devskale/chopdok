@@ -15,9 +15,7 @@ import {
   DocumentItem,
   ItemEdits,
   Part,
-  Boundary,
   deriveParts,
-  deriveSplitUnits,
   moveItem,
   insertItems,
   DEFAULT_EDIT,
@@ -41,15 +39,17 @@ export interface DocumentAssemblerHook {
   /** Shift an item one slot (arrow buttons). delta: -1 | +1 */
   shift: (index: number, delta: -1 | 1) => void;
   toggleDeleted: (id: string) => void;
-  /** Set/clear a boundary on an item. null removes it (merges the segments). */
-  setBoundary: (id: string, kind: Boundary | null) => void;
+  /** Toggle the virtual segment boundary on an item (merge/split). */
+  toggleSegmentStart: (id: string) => void;
   setSegmentName: (id: string, name: string) => void;
   clearSegmentName: (id: string) => void;
 
-  /** One PDF from all live items (the merge/assemble action). */
+  /** One PDF from all live items (checkout: "one file"). */
   exportAssembledPdf: (opts?: ExportOptions) => Promise<Uint8Array>;
-  /** One PDF per live segment (the split action). */
-  exportSplitParts: (opts?: ExportOptions) => Promise<Uint8Array[]>;
+  /** One PDF per segment (checkout: "every segment"). */
+  exportSegmentPdfs: (opts?: ExportOptions) => Promise<Uint8Array[]>;
+  /** One PDF for a single segment, by its identity anchor (checkout: "this segment"). */
+  exportSegmentPdf: (startItemId: string, opts?: ExportOptions) => Promise<Uint8Array>;
   clearAll: () => void;
 }
 
@@ -91,9 +91,9 @@ export function useDocumentAssembler(): DocumentAssemblerHook {
       }
       if (result.items.length) {
         setItems((prev) => insertItems(prev, result.items, prev.length));
-        // Each file arrives as an auto-named index segment (virtual boundary),
-        // so multi-file docs come in pre-segmented and mergeable: remove the
-        // bookmark to fuse, flip to scissors for a real cut.
+        // Each file arrives as an auto-named virtual segment, so multi-file
+        // docs come in pre-segmented: remove the marker to merge, export any
+        // granularity at checkout.
         const firstId = result.items[0].id;
         const autoName = list[f].name.replace(/\.[^.]+$/, "");
         setEdits((prev) => ({
@@ -101,7 +101,7 @@ export function useDocumentAssembler(): DocumentAssemblerHook {
           [firstId]: {
             ...DEFAULT_EDIT,
             ...prev[firstId],
-            boundary: "index",
+            segmentStart: true,
             name: prev[firstId]?.name ?? autoName,
           },
         }));
@@ -135,14 +135,12 @@ export function useDocumentAssembler(): DocumentAssemblerHook {
     }));
   }, []);
 
-  const setBoundary = useCallback((id: string, kind: Boundary | null) => {
+  const toggleSegmentStart = useCallback((id: string) => {
     setEdits((prev) => {
       const had = prev[id];
-      const next = { ...DEFAULT_EDIT, ...had };
-      if (kind) next.boundary = kind;
-      else delete next.boundary;
+      const next = { ...DEFAULT_EDIT, ...had, segmentStart: !had?.segmentStart };
       const out: ItemEdits = { ...prev, [id]: next };
-      if (!next.boundary && !next.deleted && !next.name) delete out[id];
+      if (!next.segmentStart && !next.deleted && !next.name) delete out[id];
       return out;
     });
   }, []);
@@ -156,8 +154,8 @@ export function useDocumentAssembler(): DocumentAssemblerHook {
       const had = prev[id];
       if (!had) return prev;
       const next = { ...prev };
-      if (had.deleted || had.boundary) {
-        next[id] = { deleted: had.deleted, boundary: had.boundary }; // keep flags, drop name
+      if (had.deleted || had.segmentStart) {
+        next[id] = { deleted: had.deleted, segmentStart: had.segmentStart }; // keep flags, drop name
       } else {
         delete next[id];
       }
@@ -170,10 +168,10 @@ export function useDocumentAssembler(): DocumentAssemblerHook {
     [items, edits]
   );
 
+  /** Checkout option 1: ONE PDF — all segments become its bookmarks. */
   const exportAssembledPdf = useCallback(
     async (opts: ExportOptions = {}) => {
       if (!liveItems.length) throw new Error("Nothing to export");
-      // One PDF; every named segment (index OR split kind) becomes a bookmark.
       const outline: OutlineEntry[] = [];
       let cursor = 0;
       for (const part of parts) {
@@ -185,31 +183,27 @@ export function useDocumentAssembler(): DocumentAssemblerHook {
     [liveItems, parts]
   );
 
-  const exportSplitParts = useCallback(
+  /** Checkout option 2: EVERY segment as its own PDF (same order as parts). */
+  const exportSegmentPdfs = useCallback(
     async (opts: ExportOptions = {}) => {
-      // Real cuts at SPLIT boundaries only; index segments inside a part
-      // become that part's bookmarks.
-      const units = deriveSplitUnits(items, edits);
       const pdfs: Uint8Array[] = [];
-      for (const unit of units) {
-        if (!unit.items.length) continue;
-        const outline: OutlineEntry[] = [];
-        let cursor = 0;
-        for (const seg of unit.segments) {
-          if (seg.name) outline.push({ title: seg.name, pageIndex: cursor });
-          cursor += seg.items.length;
-        }
-        pdfs.push(
-          await exportPdf(unit.items, {
-            ...opts,
-            outline: outline.length ? outline : undefined,
-            title: unit.name,
-          })
-        );
+      for (const part of parts) {
+        if (!part.items.length) continue;
+        pdfs.push(await exportPdf(part.items, { ...opts, title: part.name }));
       }
       return pdfs;
     },
-    [items, edits]
+    [parts]
+  );
+
+  /** Checkout option 3: ONE selected segment (by its identity anchor). */
+  const exportSegmentPdf = useCallback(
+    async (startItemId: string, opts: ExportOptions = {}) => {
+      const part = parts.find((p) => p.startItemId === startItemId);
+      if (!part || !part.items.length) throw new Error("Segment not found");
+      return exportPdf(part.items, { ...opts, title: part.name });
+    },
+    [parts]
   );
 
   const clearAll = useCallback(() => {
@@ -239,11 +233,12 @@ export function useDocumentAssembler(): DocumentAssemblerHook {
     move,
     shift,
     toggleDeleted,
-    setBoundary,
+    toggleSegmentStart,
     setSegmentName,
     clearSegmentName,
     exportAssembledPdf,
-    exportSplitParts,
+    exportSegmentPdfs,
+    exportSegmentPdf,
     clearAll,
   };
 }
