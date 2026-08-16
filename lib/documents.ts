@@ -58,6 +58,19 @@ export function insertItems(
   return next;
 }
 
+/** Swap the item with id `id` for `newItem`, keeping its position. */
+export function replaceItem(
+  items: DocumentItem[],
+  id: string,
+  newItem: DocumentItem
+): DocumentItem[] {
+  const idx = items.findIndex((i) => i.id === id);
+  if (idx === -1) return items;
+  const next = [...items];
+  next[idx] = newItem;
+  return next;
+}
+
 /** Remove items at the given indices. Returns a new array. */
 export function removeItems(items: DocumentItem[], indices: number[]): DocumentItem[] {
   const drop = new Set(indices);

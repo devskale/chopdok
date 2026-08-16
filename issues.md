@@ -25,7 +25,7 @@ All gates green locally: `tsc --noEmit` · `npm test` (17/17) · `npm run build`
 4. **Still splits** — the existing split/delete/rename flow keeps working unchanged.
 
 **🔌 Later addons (not in the first repurpose cut):**
-- [ ] **Crop** — cut a region out of any item (page *or* image) into a new item. Killer use cases: split a two-up scan into two pages, trim margins, slice a sprite sheet into tiles. Design note: introduces a *derived* item source (`{ type: "crop", fromItemId, region }`) — export renders the region via canvas rather than copying original bytes, so it composes cleanly with reorder/split/assemble. Pure region math (`grid/strip slices`, `px → pdf pt` mapping) goes in `lib/` with unit tests, mirroring `parts.ts`.
+- [x] **Crop** — ✅ shipped (`f dbc8d4`+): hover a card → ✂ crop icon → modal (drag a region or half-page presets; crop in place, or *keep original* to crop as a copy — the two-up-scan flow). Cropped pages are new image items at full res (images) / preview res (PDF pages); crop-in-place inherits the segment marker + name. Pure region math in `lib/crop.ts` (unit-tested). Also fixed the cross-doc drag no-op: gap computation now runs grid-level so drops in gutters resolve too.
 
 **Non-negotiables (unchanged):** everything stays in the browser — no uploads, no CDN worker, no data collection. The privacy pitch is the product.
 

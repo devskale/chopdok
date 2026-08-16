@@ -18,9 +18,11 @@ import {
   deriveParts,
   moveItem,
   insertItems,
+  replaceItem,
   DEFAULT_EDIT,
 } from "@/lib/documents";
 import { exportPdf, ExportOptions, OutlineEntry } from "@/lib/exportPdf";
+import { CropRect, croppedItemFrom } from "@/lib/crop";
 
 export interface DocumentAssemblerHook {
   items: DocumentItem[];
@@ -41,6 +43,8 @@ export interface DocumentAssemblerHook {
   toggleDeleted: (id: string) => void;
   /** Toggle the virtual segment boundary on an item (merge/split). */
   toggleSegmentStart: (id: string) => void;
+  /** Crop an item to a region. keepOriginal=true inserts a copy after it. */
+  cropItem: (id: string, rect: CropRect, keepOriginal: boolean) => Promise<void>;
   setSegmentName: (id: string, name: string) => void;
   clearSegmentName: (id: string) => void;
 
@@ -145,6 +149,45 @@ export function useDocumentAssembler(): DocumentAssemblerHook {
     });
   }, []);
 
+  const cropItem = useCallback(
+    async (id: string, rect: CropRect, keepOriginal: boolean) => {
+      const item = items.find((i) => i.id === id);
+      if (!item) return;
+      let fresh: DocumentItem;
+      try {
+        fresh = await croppedItemFrom(item, rect);
+      } catch (err) {
+        console.error("Crop failed:", err);
+        toast({
+          variant: "destructive",
+          title: "Couldn't crop",
+          description: "Something went wrong while cropping this page.",
+        });
+        return;
+      }
+      setItems((prev) => {
+        const idx = prev.findIndex((i) => i.id === id);
+        if (idx === -1) return prev;
+        return keepOriginal ? insertItems(prev, [fresh], idx + 1) : replaceItem(prev, id, fresh);
+      });
+      if (!keepOriginal) {
+        // The cropped page INHERITS the original's segment identity (marker +
+        // name), so names survive a crop-in-place.
+        setEdits((prev) => {
+          const old = prev[id];
+          if (!old) return prev;
+          const next = { ...prev };
+          delete next[id];
+          if (old.segmentStart || old.name) {
+            next[fresh.id] = { deleted: false, segmentStart: old.segmentStart, name: old.name };
+          }
+          return next;
+        });
+      }
+    },
+    [items]
+  );
+
   const setSegmentName = useCallback((id: string, name: string) => {
     setEdits((prev) => ({ ...prev, [id]: { ...DEFAULT_EDIT, ...prev[id], name } }));
   }, []);
@@ -234,6 +277,7 @@ export function useDocumentAssembler(): DocumentAssemblerHook {
     shift,
     toggleDeleted,
     toggleSegmentStart,
+    cropItem,
     setSegmentName,
     clearSegmentName,
     exportAssembledPdf,

@@ -14,6 +14,8 @@ import {
 } from "@/lib/useDocumentAssembler";
 import { assignPartIndices } from "@/lib/documents";
 import { PageSizeOption } from "@/lib/exportPdf";
+import { CropRect } from "@/lib/crop";
+import { CropModal } from "@/components/CropModal";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -40,6 +42,7 @@ import {
   Sparkles,
   Layers,
   Bookmark,
+  Crop,
 } from "lucide-react";
 import JSZip from "jszip";
 
@@ -74,6 +77,7 @@ export const DocumentAssembler: React.FC = () => {
     move,
     toggleDeleted,
     toggleSegmentStart,
+    cropItem,
     setSegmentName,
     exportAssembledPdf,
     exportSegmentPdfs,
@@ -94,11 +98,13 @@ export const DocumentAssembler: React.FC = () => {
   const [isZipDownloaded, setIsZipDownloaded] = useState(false);
 
   // Rename dialog
+  const [cropItemId, setCropItemId] = useState<string | null>(null);
   const [renamingItemId, setRenamingItemId] = useState<string | null>(null);
   const [newPartName, setNewPartName] = useState("");
   const [isRenameOpen, setIsRenameOpen] = useState(false);
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
 
   const increaseThumbnailSize = useCallback(
     () => setThumbnailSize((p) => Math.min(p + 1, 4)),
@@ -163,17 +169,38 @@ export const DocumentAssembler: React.FC = () => {
     dragIndexRef.current = index;
     setDraggingIndex(index);
   };
-  const handleCardDragOver = (e: React.DragEvent<HTMLElement>, index: number) => {
-    if (dragIndexRef.current === null) return;
+  // Gap computed over the WHOLE grid (cards + gutters between/around them):
+  // a drop anywhere in the grid resolves to an insertion gap — drops in the
+  // old per-card gutters used to silently no-op.
+  const handleGridDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    if (dragIndexRef.current === null || !gridRef.current) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = "move";
-    // Pointer in the left half of the card -> gap before it; right half -> after.
-    const rect = e.currentTarget.getBoundingClientRect();
-    const gap = e.clientX < rect.left + rect.width / 2 ? index : index + 1;
+    const kids = Array.from(gridRef.current.children) as HTMLElement[];
+    let gap = kids.length; // default: after everything
+    for (let i = 0; i < kids.length; i++) {
+      const r = kids[i].getBoundingClientRect();
+      if (e.clientY < r.top) {
+        gap = i; // pointer above this whole row
+        break;
+      }
+      if (e.clientY <= r.bottom) {
+        // pointer inside this row's band
+        if (e.clientX < r.left + r.width / 2) {
+          gap = i;
+          break;
+        }
+        const next = kids[i + 1]?.getBoundingClientRect();
+        if (!next || next.top !== r.top) {
+          gap = i + 1; // last card of its row
+          break;
+        }
+      }
+    }
     dropTargetRef.current = gap;
     setDropTarget(gap);
   };
-  const handleCardDrop = (e: React.DragEvent<HTMLElement>) => {
+  const handleCardDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
     const from = dragIndexRef.current;
@@ -473,7 +500,11 @@ export const DocumentAssembler: React.FC = () => {
           <div
             ref={scrollContainerRef}
             className="overflow-y-auto max-h-[600px] p-4 rounded-2xl bg-background/30">
-            <div className={`grid ${gridCols} gap-5`}>
+            <div
+              ref={gridRef}
+              className={`grid ${gridCols} gap-5`}
+              onDragOver={handleGridDragOver}
+              onDrop={handleCardDrop}>
               {items.map((item, index) => {
                 const edit = edits[item.id];
                 const isShaded = !!edit?.deleted;
@@ -506,8 +537,6 @@ export const DocumentAssembler: React.FC = () => {
                               e.dataTransfer.effectAllowed = "move";
                             }}
                             onDragEnd={clearDragState}
-                            onDragOver={(e) => handleCardDragOver(e, index)}
-                            onDrop={handleCardDrop}
                             className={`relative rounded-xl overflow-hidden transition-all duration-150 hover:-translate-y-0.5 hover:ring-1 hover:ring-primary/40 cursor-grab active:cursor-grabbing ${sectionColor} ${
                               isShaded ? "opacity-40 grayscale" : ""
                             } ${isDragging ? "opacity-30 grayscale scale-95 ring-2 ring-primary/60 border-dashed" : ""} ${
@@ -551,6 +580,17 @@ export const DocumentAssembler: React.FC = () => {
                                 {index + 1}
                               </span>
                             </div>
+
+                            {/* Crop */}
+                            {!isShaded && (
+                              <Button
+                                className="absolute top-2 right-2 h-8 w-8 rounded-full p-0 glass border border-white/15 text-foreground hover:text-primary hover:border-primary opacity-0 group-hover:opacity-100 transition-all duration-200"
+                                onClick={() => setCropItemId(item.id)}
+                                title="Crop this page"
+                                aria-label="Crop this page">
+                                <Crop size={16} />
+                              </Button>
+                            )}
 
                             {/* Remove / restore */}
                             <Button
@@ -742,6 +782,18 @@ export const DocumentAssembler: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Crop dialog */}
+      <CropModal
+        key={cropItemId ?? "none"}
+        item={items.find((i) => i.id === cropItemId) ?? null}
+        open={!!cropItemId}
+        onOpenChange={(o) => !o && setCropItemId(null)}
+        onApply={(id, rect: CropRect, keep) => {
+          void cropItem(id, rect, keep);
+          setCropItemId(null);
+        }}
+      />
 
       {/* Rename dialog */}
       <Dialog open={isRenameOpen} onOpenChange={setIsRenameOpen}>

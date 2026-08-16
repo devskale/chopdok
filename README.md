@@ -23,6 +23,7 @@ same thing: a card in one ordered document. Then:
 - 🗑️ **Delete** — shade out any page/image (keeps its place, excluded from export)
 - ✏️ **Rename segments** — names are anchored to the segment, so they survive reordering
 - 📐 **Page size** — images export as *Fit to image* or *A4* (letterboxed)
+- ✂️ **Crop** — crop any page in a modal (free region or half-page presets; in place or as a copy)
 - 📦 Download results individually or as a ZIP
 - 🔒 100% client-side — nothing is uploaded
 
@@ -99,8 +100,7 @@ public/
 
 ## Roadmap
 
-- ✂️ **Crop** — cut a region out of any item (two-up scans → two pages, margin
-  trim, sprite-sheet slicing). See `issues.md` for the design note.
+- ✅ **Crop** — shipped: region crop in a modal (free drag + half-page presets).
 
 ## Deploy
 

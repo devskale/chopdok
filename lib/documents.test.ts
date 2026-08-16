@@ -7,6 +7,7 @@ import {
   deriveParts,
   assignPartIndices,
   deriveDocRuns,
+  replaceItem,
   ItemEdits,
 } from "./documents";
 
@@ -201,5 +202,20 @@ describe("deriveDocRuns (doc borders)", () => {
 
   it("empty list -> no runs", () => {
     expect(deriveDocRuns([])).toEqual([]);
+  });
+});
+
+describe("replaceItem (crop in place)", () => {
+  it("swaps the item, keeping position and neighbours", () => {
+    const a = [item(), item(), item()];
+    const fresh = item({ id: "fresh", label: "cropped" });
+    const out = replaceItem(a, "i2", fresh);
+    expect(ids(out)).toEqual(["i1", "fresh", "i3"]);
+    expect(ids(a)).toEqual(["i1", "i2", "i3"]); // no mutation
+  });
+
+  it("unknown id is a no-op", () => {
+    const a = [item(), item()];
+    expect(ids(replaceItem(a, "nope", item()))).toEqual(ids(a));
   });
 });
