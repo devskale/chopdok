@@ -38,7 +38,8 @@ export const CropModal: React.FC<CropModalProps> = ({
   note,
   onSaveNote,
 }) => {
-  const [tab, setTab] = useState<"crop" | "notes">("crop");
+  // Notes active by default (user pref): usually you look, note, then crop if needed.
+  const [tab, setTab] = useState<"crop" | "notes">("notes");
   const [noteDraft, setNoteDraft] = useState("");
   const [crop, setCrop] = useState<Crop>();
   const [keep, setKeep] = useState(false);

@@ -42,13 +42,14 @@ export const PageViewerModal: React.FC<PageViewerModalProps> = ({
   const [natural, setNatural] = useState<{ w: number; h: number } | null>(null);
   const [surface, setSurface] = useState<HTMLElement | null>(null);
   const surfaceRef = useRef<HTMLDivElement | null>(null);
-  const [tab, setTab] = useState<"view" | "notes">("view");
+  // Notes active by default (user pref): read the page, note it, magnify if needed.
+  const [tab, setTab] = useState<"view" | "notes">("notes");
   const [noteDraft, setNoteDraft] = useState("");
 
   // Reset + fit + hi-res load per item.
   useEffect(() => {
     if (!open || !item) return;
-    setTab("view");
+    setTab("notes"); // default tab
     setNoteDraft(note ?? "");
     const fit = () => {
       const w = Math.min(window.innerWidth - 64, 896);
