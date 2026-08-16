@@ -35,13 +35,9 @@ import {
   Download,
   Archive,
   Eraser,
-  FileText,
-  Image as ImageIcon,
   Edit2,
   Check,
   Sparkles,
-  ChevronLeft,
-  ChevronRight,
   Layers,
   Bookmark,
 } from "lucide-react";
@@ -76,7 +72,6 @@ export const DocumentAssembler: React.FC = () => {
     deletedCount,
     addFiles,
     move,
-    shift,
     toggleDeleted,
     setBoundary,
     setSegmentName,
@@ -375,24 +370,13 @@ export const DocumentAssembler: React.FC = () => {
           </div>
         ) : (
           <div className="flex items-center justify-between w-full">
-            <div className="flex items-center gap-4 min-w-0">
-              <div className="flex items-center gap-1.5">
-                <div className="grid place-items-center p-2.5 rounded-xl bg-rose-500/15 ring-1 ring-rose-500/25">
-                  <FileText className="text-rose-400 w-5 h-5" strokeWidth={1.75} />
-                </div>
-                <div className="grid place-items-center p-2.5 rounded-xl bg-cyan-500/15 ring-1 ring-cyan-500/25">
-                  <ImageIcon className="text-cyan-400 w-5 h-5" strokeWidth={1.75} />
-                </div>
-              </div>
-              <div className="min-w-0">
-                <p className="font-semibold text-foreground truncate">
-                  {items.length} item{items.length === 1 ? "" : "s"} in the document
-                </p>
-                <p className="text-sm text-muted-foreground font-mono">
-                  {liveCount} live{deletedCount ? ` · ${deletedCount} removed` : ""}
-                  {parts.length > 1 ? ` · ${parts.length} segments` : ""}
-                </p>
-              </div>
+            <div className="min-w-0">
+              <p className="font-semibold text-foreground truncate">
+                {items.length} item{items.length === 1 ? "" : "s"} · {parts.length} segment{parts.length === 1 ? "" : "s"}
+              </p>
+              <p className="text-sm text-muted-foreground font-mono">
+                {liveCount} live{deletedCount ? ` · ${deletedCount} removed` : ""}
+              </p>
             </div>
             <div className="flex items-center gap-3">
               <label htmlFor="file-upload-add" className="cursor-pointer">
@@ -479,23 +463,11 @@ export const DocumentAssembler: React.FC = () => {
               {docRuns.map((run: DocRun) => (
                 <div
                   key={run.startIndex}
-                  className="rounded-2xl border border-border/60 bg-background/20 p-3 space-y-3">
-                  {/* Doc border header */}
-                  <div className="flex items-center gap-2 min-w-0 px-1 pt-1">
-                    <span className="grid place-items-center w-6 h-6 rounded-md bg-secondary/70 border border-border/60 shrink-0">
-                      {run.file.type === "application/pdf" || /\.pdf$/i.test(run.file.name) ? (
-                        <FileText size={12} className="text-rose-400" />
-                      ) : (
-                        <ImageIcon size={12} className="text-cyan-400" />
-                      )}
-                    </span>
-                    <span className="text-xs font-medium text-foreground/80 truncate">
+                  className="rounded-xl border border-border/40 p-2.5 space-y-2.5">
+                  <div className="px-1">
+                    <span className="text-[11px] font-medium text-muted-foreground/70 truncate">
                       {run.file.name}
                     </span>
-                    <span className="text-[10px] font-mono text-muted-foreground/70 shrink-0">
-                      {run.length} item{run.length === 1 ? "" : "s"}
-                    </span>
-                    <div className="flex-1 h-px bg-border/50" />
                   </div>
                   <div className={`grid ${gridCols} gap-5`}>
                     {items.slice(run.startIndex, run.startIndex + run.length).map((item, localIdx) => {
@@ -547,13 +519,6 @@ export const DocumentAssembler: React.FC = () => {
                                 unoptimized
                                 className="object-contain p-2"
                               />
-                              <div className="absolute top-2 right-2 grid place-items-center w-5 h-5 rounded-md bg-background/70 border border-border/60 pointer-events-none">
-                                {item.kind === "image" ? (
-                                  <ImageIcon size={11} className="text-muted-foreground" />
-                                ) : (
-                                  <FileText size={11} className="text-muted-foreground" />
-                                )}
-                              </div>
                             </div>
 
                             <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors pointer-events-none" />
@@ -598,30 +563,6 @@ export const DocumentAssembler: React.FC = () => {
                               aria-label={isShaded ? "Restore item" : "Remove item"}>
                               {isShaded ? <Plus size={16} /> : <X size={16} />}
                             </Button>
-
-                            {/* Reorder arrows */}
-                            <div className="absolute bottom-12 right-1 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                className="glass h-6 w-6 rounded-full p-0"
-                                disabled={index === 0}
-                                onClick={() => shift(index, -1)}
-                                title="Move earlier"
-                                aria-label="Move earlier">
-                                <ChevronLeft size={13} />
-                              </Button>
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                className="glass h-6 w-6 rounded-full p-0"
-                                disabled={index === items.length - 1}
-                                onClick={() => shift(index, 1)}
-                                title="Move later"
-                                aria-label="Move later">
-                                <ChevronRight size={13} />
-                              </Button>
-                            </div>
                           </div>
 
                           {/* Boundary controls — act on the gap AFTER this card:
@@ -629,11 +570,11 @@ export const DocumentAssembler: React.FC = () => {
                               🔖 index = virtual segment (bookmark only, no cut)
                               clicking an active control removes it (merge) */}
                           {index < items.length - 1 && (
-                            <div className="absolute top-1/2 -right-3 z-10 -mt-7 flex flex-col gap-1.5">
+                            <div className="absolute top-1/2 -right-2.5 z-10 -mt-6 flex flex-col gap-1">
                               {([
                                 {
                                   kind: "split" as const,
-                                  icon: <Scissors size={12} />,
+                                  icon: <Scissors size={11} />,
                                   label:
                                     nextBoundary === "split"
                                       ? `Remove split before item ${index + 2}`
@@ -644,7 +585,7 @@ export const DocumentAssembler: React.FC = () => {
                                 },
                                 {
                                   kind: "index" as const,
-                                  icon: <Bookmark size={12} />,
+                                  icon: <Bookmark size={11} />,
                                   label:
                                     nextBoundary === "index"
                                       ? `Remove index segment before item ${index + 2}`
@@ -659,7 +600,7 @@ export const DocumentAssembler: React.FC = () => {
                                   tabIndex={0}
                                   aria-label={c.label}
                                   title={c.label}
-                                  className={`w-6 h-6 cursor-pointer rounded-full transition-all duration-200 hover:scale-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary
+                                  className={`w-5 h-5 cursor-pointer rounded-full transition-all duration-200 hover:scale-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary
                                               ${
                                                 c.active
                                                   ? "opacity-100"
@@ -742,7 +683,6 @@ export const DocumentAssembler: React.FC = () => {
                       onClick={() => openRename(part.startItemId, part.name || `Part ${part.index}`)}
                       title="Rename segment">
                       {part.name || `Part ${part.index}`}
-                      <Edit2 size={10} className="inline ml-1.5 opacity-50" />
                     </button>
                   </div>
                   <span className="text-xs bg-secondary/60 border border-border/60 px-2 py-1 rounded-md text-muted-foreground font-mono shrink-0">

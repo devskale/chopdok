@@ -37,6 +37,14 @@ type PdfjsLike = {
 let _pdfjs: PdfjsLike | null = null;
 const ensurePdfjs = async (): Promise<PdfjsLike | null> => {
   if (typeof window === "undefined") return null;
+  // pdfjs-dist v6 requires Promise.try (Chrome 133+). On older engines the
+  // failure is swallowed inside pdf.js' promise chain and getDocument() never
+  // settles — so polyfill BEFORE importing it. See E2E note in issues.md.
+  const P = Promise as unknown as Record<string, unknown>;
+  if (typeof P.try !== "function") {
+    P.try = (fn: (...a: unknown[]) => unknown, ...args: unknown[]) =>
+      Promise.resolve().then(() => fn(...args));
+  }
   if (_pdfjs) return _pdfjs;
   const mod = await import("pdfjs-dist");
   const maybeDefault = (mod as unknown as Record<string, unknown>).default ?? mod;
@@ -52,10 +60,26 @@ const ensurePdfjs = async (): Promise<PdfjsLike | null> => {
   };
   if (!isPdfjs(candidate)) return null;
   const pdfjs = candidate;
-  pdfjs.GlobalWorkerOptions.workerPort = new Worker(
-    `${BASE_PATH}/pdf.worker.min.mjs`,
-    { type: "module" }
-  );
+  // pdfjs-dist v6 (no legacy build) uses Promise.try in BOTH realms — the
+  // worker realm doesn't inherit the page polyfill. Patch it too: fetch the
+  // local worker, prepend the polyfill, spawn a blob module-worker. Old
+  // engines then work; everything stays same-origin.
+  const workerSrc = `${BASE_PATH}/pdf.worker.min.mjs`;
+  try {
+    const src = await fetch(workerSrc).then((r) => {
+      if (!r.ok) throw new Error(`worker fetch ${r.status}`);
+      return r.text();
+    });
+    const patched =
+      `if(typeof Promise.try!=="function"){Promise.try=(fn,...a)=>Promise.resolve().then(()=>fn(...a));}\n` +
+      src;
+    const blobUrl = URL.createObjectURL(
+      new Blob([patched], { type: "text/javascript" })
+    );
+    pdfjs.GlobalWorkerOptions.workerPort = new Worker(blobUrl, { type: "module" });
+  } catch {
+    pdfjs.GlobalWorkerOptions.workerPort = new Worker(workerSrc, { type: "module" });
+  }
   _pdfjs = pdfjs;
   return _pdfjs;
 };
