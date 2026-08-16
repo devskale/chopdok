@@ -49,7 +49,8 @@ describe("useDocumentAssembler", () => {
       await result.current.addFiles([pngFile(), pngFile()]);
     });
     expect(result.current.items.map((i) => i.id)).toEqual(["a", "b"]);
-    expect(result.current.parts).toHaveLength(1); // no markers -> one part
+    // Two files -> two auto index segments (mergeable)
+    expect(result.current.parts).toHaveLength(2);
     expect(result.current.isBusy).toBe(false);
     expect(result.current.progress).toBe(100);
   });
@@ -69,6 +70,35 @@ describe("useDocumentAssembler", () => {
     expect(result.current.items.map((i) => i.id)).toEqual(["b", "a", "c"]);
   });
 
+  it("addFiles auto-creates an index segment named after the file", async () => {
+    mockIngest.mockResolvedValueOnce(imageResult("a"));
+    const { result } = renderHook(() => useDocumentAssembler());
+    await act(async () => {
+      await result.current.addFiles([new File([], "My Doc.pdf", { type: "application/pdf" })]);
+    });
+    expect(result.current.items).toHaveLength(1);
+    expect(result.current.edits["a"]).toMatchObject({ boundary: "index", name: "My Doc" });
+    expect(result.current.parts[0].name).toBe("My Doc");
+  });
+
+  it("setBoundary flips kinds and merges on null", async () => {
+    mockIngest.mockResolvedValueOnce({
+      ok: true,
+      items: [...imageResult("a").items, ...imageResult("b").items],
+    });
+    const { result } = renderHook(() => useDocumentAssembler());
+    await act(async () => {
+      await result.current.addFiles([new File([], "x.pdf", { type: "application/pdf" })]);
+    });
+    // Auto index segment on item a; flip to split
+    act(() => result.current.setBoundary("a", "split"));
+    expect(result.current.edits["a"]?.boundary).toBe("split");
+    // Remove -> merged (boundary gone; auto name may persist harmlessly)
+    act(() => result.current.setBoundary("a", null));
+    expect(result.current.edits["a"]?.boundary).toBeUndefined();
+    expect(result.current.parts).toHaveLength(1);
+  });
+
   it("togglePartStart + name: segment identity survives reorder", async () => {
     mockIngest.mockResolvedValueOnce({
       ok: true,
@@ -78,15 +108,16 @@ describe("useDocumentAssembler", () => {
     await act(async () => {
       await result.current.addFiles([pngFile()]);
     });
-    act(() => result.current.togglePartStart("b"));
+    act(() => result.current.setBoundary("b", "split"));
     act(() => result.current.setSegmentName("b", "Middle"));
-    expect(result.current.parts.map((p) => p.name)).toEqual([undefined, "Middle"]);
+    // a carries its auto index segment (file name), b is a named split
+    expect(result.current.parts.map((p) => p.name)).toEqual(["a", "Middle"]);
 
-    // Move "a" after "b": the segment still starts at b, name follows.
+    // Move "a" after "b": b's segment still starts at b, name follows it.
     act(() => result.current.move(0, 1));
     expect(result.current.items.map((i) => i.id)).toEqual(["b", "a", "c"]);
-    // b is now the FIRST live item, so its marker starts part 1 — identity kept.
-    expect(result.current.parts).toHaveLength(1);
+    // b starts the doc now; a's index boundary opens a segment mid-doc.
+    expect(result.current.parts).toHaveLength(2);
     expect(result.current.parts[0].startItemId).toBe("b");
     expect(result.current.parts[0].name).toBe("Middle");
   });

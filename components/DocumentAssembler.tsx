@@ -43,6 +43,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Layers,
+  Bookmark,
 } from "lucide-react";
 import JSZip from "jszip";
 
@@ -77,7 +78,7 @@ export const DocumentAssembler: React.FC = () => {
     move,
     shift,
     toggleDeleted,
-    togglePartStart,
+    setBoundary,
     setSegmentName,
     exportAssembledPdf,
     exportSplitParts,
@@ -507,7 +508,7 @@ export const DocumentAssembler: React.FC = () => {
                       const isPartStart = !!part;
                       const displayPartName = part?.name ?? `Part ${(partIdx ?? 0) + 1}`;
                       const nextEdit = items[index + 1] ? edits[items[index + 1].id] : undefined;
-                      const splitActive = !!nextEdit?.partStart;
+                      const nextBoundary = nextEdit?.boundary; // boundary on the FOLLOWING item
                       const isDragging = draggingIndex === index;
                       const gapBefore = dropTarget === index;
                       const gapAfterEnd =
@@ -623,33 +624,72 @@ export const DocumentAssembler: React.FC = () => {
                             </div>
                           </div>
 
-                          {/* Split handle — boundary AFTER this card */}
+                          {/* Boundary controls — act on the gap AFTER this card:
+                              ✂ split = real cut into separate PDFs
+                              🔖 index = virtual segment (bookmark only, no cut)
+                              clicking an active control removes it (merge) */}
                           {index < items.length - 1 && (
-                            <div
-                              role="button"
-                              tabIndex={0}
-                              aria-label={`Split at item ${index + 2}`}
-                              className={`absolute top-1/2 -right-3 w-6 h-6 -mt-3 z-10 cursor-pointer rounded-full transition-all duration-200 hover:scale-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary
-                                          ${
-                                            splitActive
-                                              ? "opacity-100"
-                                              : "opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
-                                          }`}
-                              onClick={() => togglePartStart(items[index + 1].id)}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter" || e.key === " ") {
-                                  e.preventDefault();
-                                  togglePartStart(items[index + 1].id);
-                                }
-                              }}>
-                              <div
-                                className={`w-full h-full rounded-full grid place-items-center border transition-colors ${
-                                  splitActive
-                                    ? "bg-primary border-primary text-primary-foreground glow-primary"
-                                    : "glass border-border text-muted-foreground hover:text-primary hover:border-primary"
-                                }`}>
-                                <Scissors size={13} />
-                              </div>
+                            <div className="absolute top-1/2 -right-3 z-10 -mt-7 flex flex-col gap-1.5">
+                              {([
+                                {
+                                  kind: "split" as const,
+                                  icon: <Scissors size={12} />,
+                                  label:
+                                    nextBoundary === "split"
+                                      ? `Remove split before item ${index + 2}`
+                                      : `Split before item ${index + 2}`,
+                                  active: nextBoundary === "split",
+                                  activeCls:
+                                    "bg-primary border-primary text-primary-foreground glow-primary",
+                                },
+                                {
+                                  kind: "index" as const,
+                                  icon: <Bookmark size={12} />,
+                                  label:
+                                    nextBoundary === "index"
+                                      ? `Remove index segment before item ${index + 2}`
+                                      : `Index segment before item ${index + 2}`,
+                                  active: nextBoundary === "index",
+                                  activeCls: "bg-cyan-500 border-cyan-500 text-white",
+                                },
+                              ] as const).map((c) => (
+                                <div
+                                  key={c.kind}
+                                  role="button"
+                                  tabIndex={0}
+                                  aria-label={c.label}
+                                  title={c.label}
+                                  className={`w-6 h-6 cursor-pointer rounded-full transition-all duration-200 hover:scale-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary
+                                              ${
+                                                c.active
+                                                  ? "opacity-100"
+                                                  : "opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+                                              }`}
+                                  onClick={() =>
+                                    setBoundary(
+                                      items[index + 1].id,
+                                      nextBoundary === c.kind ? null : c.kind
+                                    )
+                                  }
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter" || e.key === " ") {
+                                      e.preventDefault();
+                                      setBoundary(
+                                        items[index + 1].id,
+                                        nextBoundary === c.kind ? null : c.kind
+                                      );
+                                    }
+                                  }}>
+                                  <div
+                                    className={`w-full h-full rounded-full grid place-items-center border transition-colors ${
+                                      c.active
+                                        ? c.activeCls
+                                        : "glass border-border text-muted-foreground hover:text-primary hover:border-primary"
+                                    }`}>
+                                    {c.icon}
+                                  </div>
+                                </div>
+                              ))}
                             </div>
                           )}
                         </div>
@@ -690,9 +730,20 @@ export const DocumentAssembler: React.FC = () => {
                   key={part.startItemId}
                   className="flex items-center justify-between py-3 first:pt-0 last:pb-0 gap-3">
                   <div className="flex items-center gap-3 min-w-0">
-                    <span className="font-medium text-foreground truncate">
+                    {part.boundary === "split" ? (
+                      <Scissors size={13} className="text-primary shrink-0" aria-label="split" />
+                    ) : part.boundary === "index" ? (
+                      <Bookmark size={13} className="text-cyan-400 shrink-0" aria-label="index" />
+                    ) : (
+                      <Layers size={13} className="text-muted-foreground shrink-0" aria-label="start" />
+                    )}
+                    <button
+                      className="font-medium text-foreground truncate hover:text-primary transition-colors"
+                      onClick={() => openRename(part.startItemId, part.name || `Part ${part.index}`)}
+                      title="Rename segment">
                       {part.name || `Part ${part.index}`}
-                    </span>
+                      <Edit2 size={10} className="inline ml-1.5 opacity-50" />
+                    </button>
                   </div>
                   <span className="text-xs bg-secondary/60 border border-border/60 px-2 py-1 rounded-md text-muted-foreground font-mono shrink-0">
                     {part.items.length} item{part.items.length === 1 ? "" : "s"}
@@ -707,7 +758,7 @@ export const DocumentAssembler: React.FC = () => {
                 size="lg"
                 variant="outline"
                 disabled={isExporting || isBusy}
-                title="Export each segment as its own PDF">
+                title="Cut at ✂ boundaries into separate PDFs (🔖 segments become bookmarks)">
                 <Scissors className="mr-2 h-4 w-4" />
                 Split &amp; download
               </Button>
@@ -716,7 +767,7 @@ export const DocumentAssembler: React.FC = () => {
                 size="lg"
                 className="glow-primary"
                 disabled={isExporting || isBusy}
-                title="Merge everything into one PDF">
+                title="One PDF; named segments become its bookmark index">
                 {isExporting ? (
                   <Layers className="mr-2 h-4 w-4 animate-pulse" />
                 ) : (

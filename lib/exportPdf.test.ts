@@ -3,9 +3,9 @@
 // here (documented gap, like the pdf.js render path).
 
 import { describe, it, expect, beforeEach } from "vitest";
-import { PDFDocument } from "pdf-lib";
+import { PDFDocument, PDFDict, PDFName } from "pdf-lib";
 import { exportPdf } from "./exportPdf";
-import { deriveParts, DocumentItem } from "./documents";
+import { deriveSplitUnits, DocumentItem, ItemEdits } from "./documents";
 
 /** TS6: File needs a plain ArrayBuffer, not ArrayBufferLike. */
 const buf = (u: Uint8Array): ArrayBuffer =>
@@ -125,33 +125,74 @@ describe("exportPdf", () => {
   });
 });
 
-describe("exportPdf + deriveParts (the split path)", () => {
-  it("each part exports to its own PDF with the right pages", async () => {
+describe("exportPdf + deriveSplitUnits (the split path)", () => {
+  it("index boundaries do NOT cut; split boundaries do", async () => {
     const src = await makePdf(4);
     const items = [pdfItem(src, 0), pdfItem(src, 1), pdfItem(src, 2), pdfItem(src, 3)];
-    const edits = { p3: { deleted: false, partStart: true } };
-    const parts = deriveParts(items, edits);
-    expect(parts).toHaveLength(2);
+    const edits: ItemEdits = {
+      p1: { deleted: false, boundary: "index", name: "Intro" }, // virtual
+      p3: { deleted: false, boundary: "split", name: "Part Two" }, // real cut
+    };
+    const units = deriveSplitUnits(items, edits);
+    expect(units).toHaveLength(2);
+    expect(units[0].items).toHaveLength(2);
+    expect(units[0].segments.map((s) => s.name)).toEqual(["Intro"]);
+    expect(units[1].name).toBe("Part Two");
 
     const partPdfs: number[] = [];
-    for (const part of parts) {
-      const bytes = await exportPdf(part.items);
+    for (const unit of units) {
+      const bytes = await exportPdf(unit.items);
       partPdfs.push((await PDFDocument.load(bytes)).getPageCount());
     }
     expect(partPdfs).toEqual([2, 2]);
   });
 
-  it("splitting a MIXED document (pdf pages + images) into parts", async () => {
+  it("splitting a MIXED document (pdf pages + images) into units", async () => {
     const src = await makePdf(2);
     const items = [pdfItem(src, 0), pngItem(), pdfItem(src, 1), jpgItem()];
-    const edits = { g2: { deleted: false, partStart: true } };
-    const parts = deriveParts(items, edits);
-    expect(parts).toHaveLength(2);
+    const edits: ItemEdits = { g2: { deleted: false, boundary: "split" } };
+    const units = deriveSplitUnits(items, edits);
+    expect(units).toHaveLength(2);
 
-    const a = await PDFDocument.load(await exportPdf(parts[0].items));
-    const b = await PDFDocument.load(await exportPdf(parts[1].items));
+    const a = await PDFDocument.load(await exportPdf(units[0].items));
+    const b = await PDFDocument.load(await exportPdf(units[1].items));
     expect(a.getPageCount()).toBe(1);
-    expect(b.getPageCount()).toBe(3); // image + pdf page + jpg
-    expect(b.getPage(0).getWidth()).toBe(1); // image first in part 2
+    expect(b.getPageCount()).toBe(3);
+    expect(b.getPage(0).getWidth()).toBe(1); // image first in unit 2
+  });
+});
+
+describe("exportPdf outline (segment index as PDF metadata)", () => {
+  it("writes bookmarks + opens the reader on the outline panel", async () => {
+    const bytes = await exportPdf([pngItem(), pngItem(), pngItem()], {
+      outline: [
+        { title: "Cover", pageIndex: 0 },
+        { title: "Evidence", pageIndex: 1 },
+        { title: "Appendix", pageIndex: 2 },
+      ],
+    });
+    const doc = await PDFDocument.load(bytes);
+    const outlines = doc.catalog.lookup(PDFName.of("Outlines"), PDFDict);
+    expect(outlines).toBeTruthy();
+    expect(String(outlines.get(PDFName.of("Count")))).toBe(String(3));
+    // PageMode /UseOutlines -> readers show the index sidebar
+    expect(String(doc.catalog.get(PDFName.of("PageMode")))).toBe("/UseOutlines");
+  });
+
+  it("no outline option -> no Outlines entry (byte-lean default)", async () => {
+    const doc = await PDFDocument.load(await exportPdf([pngItem()]));
+    expect(doc.catalog.get(PDFName.of("Outlines"))).toBeFalsy();
+  });
+
+  it("outline entries past the last page are dropped safely", async () => {
+    const bytes = await exportPdf([pngItem()], {
+      outline: [
+        { title: "ok", pageIndex: 0 },
+        { title: "bad", pageIndex: 99 },
+      ],
+    });
+    const doc = await PDFDocument.load(bytes);
+    const outlines = doc.catalog.lookup(PDFName.of("Outlines"), PDFDict);
+    expect(String(outlines.get(PDFName.of("Count")))).toBe(String(1));
   });
 });

@@ -9,7 +9,14 @@
 //
 // Node-safe: the canvas re-encode path only runs when `document` exists.
 
-import { PDFDocument } from "pdf-lib";
+import {
+  PDFDocument,
+  PDFName,
+  PDFDict,
+  PDFArray,
+  PDFNumber,
+  PDFHexString,
+} from "pdf-lib";
 import { DocumentItem } from "./documents";
 
 /** Export page-size setting for image items. */
@@ -23,8 +30,18 @@ export const PAGE_SIZES: Record<PageSizeOption, { label: string }> = {
 /** A4 portrait in PDF points (72 dpi). */
 const A4_PT = { width: 595.28, height: 841.89 };
 
+/** One bookmark: jump to pageIndex (0-based in the OUTPUT pdf). */
+export interface OutlineEntry {
+  title: string;
+  pageIndex: number;
+}
+
 export interface ExportOptions {
   pageSize?: PageSizeOption;
+  /** Write a PDF outline (bookmarks) — the segment index readers display. */
+  outline?: OutlineEntry[];
+  /** Set the document Title metadata. */
+  title?: string;
 }
 
 /** Is this file embeddable by pdf-lib without conversion? */
@@ -82,6 +99,46 @@ function letterbox(
 }
 
 /**
+ * Write a flat /Outlines tree into the catalog (pdf-lib has no outline API,
+ * so this is hand-rolled with its low-level object model). Also sets
+ * PageMode /UseOutlines so readers open the bookmark sidebar.
+ */
+function writeOutline(doc: PDFDocument, entries: OutlineEntry[]): void {
+  const valid = entries.filter(
+    (e) => e.title && e.pageIndex >= 0 && e.pageIndex < doc.getPageCount()
+  );
+  if (!valid.length) return;
+  const ctx = doc.context;
+
+  const outlinesRef = ctx.nextRef();
+  const itemRefs = valid.map(() => ctx.nextRef());
+
+  valid.forEach((entry, i) => {
+    const dict = PDFDict.withContext(ctx);
+    dict.set(PDFName.of("Title"), PDFHexString.fromText(entry.title));
+    dict.set(PDFName.of("Parent"), outlinesRef);
+    const dest = PDFArray.withContext(ctx);
+    dest.push(doc.getPage(entry.pageIndex).ref);
+    dest.push(PDFName.of("Fit"));
+    dict.set(PDFName.of("Dest"), dest);
+    if (i > 0) dict.set(PDFName.of("Prev"), itemRefs[i - 1]);
+    if (i < valid.length - 1) dict.set(PDFName.of("Next"), itemRefs[i + 1]);
+    ctx.assign(itemRefs[i], dict);
+  });
+
+  const outlines = PDFDict.withContext(ctx);
+  outlines.set(PDFName.of("Type"), PDFName.of("Outlines"));
+  outlines.set(PDFName.of("First"), itemRefs[0]);
+  outlines.set(PDFName.of("Last"), itemRefs[itemRefs.length - 1]);
+  outlines.set(PDFName.of("Count"), PDFNumber.of(valid.length));
+  ctx.assign(outlinesRef, outlines);
+
+  doc.catalog.set(PDFName.of("Outlines"), outlinesRef);
+  // Open the bookmark panel — the index IS the feature.
+  doc.catalog.set(PDFName.of("PageMode"), PDFName.of("UseOutlines"));
+}
+
+/**
  * Build one PDF from the ordered items. This is the single export engine:
  * "assemble" is items = all live items; "split" is exportPdf called per part.
  */
@@ -114,5 +171,7 @@ export async function exportPdf(
       }
     }
   }
+  if (opts.outline?.length) writeOutline(out, opts.outline);
+  if (opts.title) out.setTitle(opts.title);
   return out.save();
 }

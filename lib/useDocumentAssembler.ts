@@ -3,7 +3,7 @@
 // The assembler hook: state + side-effects around the pure lib.
 //
 // items[]  — ordered DocumentItems (PDF pages + images, mixed)
-// edits{}  — per-item { deleted, partStart, name } (item-anchored segments)
+// edits{}  — per-item { deleted, boundary?: "index"|"split", name } 
 //
 // Everything pure lives in lib/documents.ts + lib/exportPdf.ts; this hook
 // owns ingest (progress, cancellation, toasts) and object-URL hygiene.
@@ -15,12 +15,14 @@ import {
   DocumentItem,
   ItemEdits,
   Part,
+  Boundary,
   deriveParts,
+  deriveSplitUnits,
   moveItem,
   insertItems,
   DEFAULT_EDIT,
 } from "@/lib/documents";
-import { exportPdf, ExportOptions } from "@/lib/exportPdf";
+import { exportPdf, ExportOptions, OutlineEntry } from "@/lib/exportPdf";
 
 export interface DocumentAssemblerHook {
   items: DocumentItem[];
@@ -39,7 +41,8 @@ export interface DocumentAssemblerHook {
   /** Shift an item one slot (arrow buttons). delta: -1 | +1 */
   shift: (index: number, delta: -1 | 1) => void;
   toggleDeleted: (id: string) => void;
-  togglePartStart: (id: string) => void;
+  /** Set/clear a boundary on an item. null removes it (merges the segments). */
+  setBoundary: (id: string, kind: Boundary | null) => void;
   setSegmentName: (id: string, name: string) => void;
   clearSegmentName: (id: string) => void;
 
@@ -88,6 +91,20 @@ export function useDocumentAssembler(): DocumentAssemblerHook {
       }
       if (result.items.length) {
         setItems((prev) => insertItems(prev, result.items, prev.length));
+        // Each file arrives as an auto-named index segment (virtual boundary),
+        // so multi-file docs come in pre-segmented and mergeable: remove the
+        // bookmark to fuse, flip to scissors for a real cut.
+        const firstId = result.items[0].id;
+        const autoName = list[f].name.replace(/\.[^.]+$/, "");
+        setEdits((prev) => ({
+          ...prev,
+          [firstId]: {
+            ...DEFAULT_EDIT,
+            ...prev[firstId],
+            boundary: "index",
+            name: prev[firstId]?.name ?? autoName,
+          },
+        }));
         added += result.items.length;
       }
     }
@@ -118,11 +135,16 @@ export function useDocumentAssembler(): DocumentAssemblerHook {
     }));
   }, []);
 
-  const togglePartStart = useCallback((id: string) => {
-    setEdits((prev) => ({
-      ...prev,
-      [id]: { ...DEFAULT_EDIT, ...prev[id], partStart: !prev[id]?.partStart },
-    }));
+  const setBoundary = useCallback((id: string, kind: Boundary | null) => {
+    setEdits((prev) => {
+      const had = prev[id];
+      const next = { ...DEFAULT_EDIT, ...had };
+      if (kind) next.boundary = kind;
+      else delete next.boundary;
+      const out: ItemEdits = { ...prev, [id]: next };
+      if (!next.boundary && !next.deleted && !next.name) delete out[id];
+      return out;
+    });
   }, []);
 
   const setSegmentName = useCallback((id: string, name: string) => {
@@ -134,8 +156,8 @@ export function useDocumentAssembler(): DocumentAssemblerHook {
       const had = prev[id];
       if (!had) return prev;
       const next = { ...prev };
-      if (had.deleted || had.partStart) {
-        next[id] = { deleted: had.deleted, partStart: had.partStart }; // keep flags, drop name
+      if (had.deleted || had.boundary) {
+        next[id] = { deleted: had.deleted, boundary: had.boundary }; // keep flags, drop name
       } else {
         delete next[id];
       }
@@ -151,20 +173,43 @@ export function useDocumentAssembler(): DocumentAssemblerHook {
   const exportAssembledPdf = useCallback(
     async (opts: ExportOptions = {}) => {
       if (!liveItems.length) throw new Error("Nothing to export");
-      return exportPdf(liveItems, opts);
+      // One PDF; every named segment (index OR split kind) becomes a bookmark.
+      const outline: OutlineEntry[] = [];
+      let cursor = 0;
+      for (const part of parts) {
+        if (part.name) outline.push({ title: part.name, pageIndex: cursor });
+        cursor += part.items.length;
+      }
+      return exportPdf(liveItems, { ...opts, outline: outline.length ? outline : undefined });
     },
-    [liveItems]
+    [liveItems, parts]
   );
 
   const exportSplitParts = useCallback(
     async (opts: ExportOptions = {}) => {
+      // Real cuts at SPLIT boundaries only; index segments inside a part
+      // become that part's bookmarks.
+      const units = deriveSplitUnits(items, edits);
       const pdfs: Uint8Array[] = [];
-      for (const part of parts) {
-        if (part.items.length) pdfs.push(await exportPdf(part.items, opts));
+      for (const unit of units) {
+        if (!unit.items.length) continue;
+        const outline: OutlineEntry[] = [];
+        let cursor = 0;
+        for (const seg of unit.segments) {
+          if (seg.name) outline.push({ title: seg.name, pageIndex: cursor });
+          cursor += seg.items.length;
+        }
+        pdfs.push(
+          await exportPdf(unit.items, {
+            ...opts,
+            outline: outline.length ? outline : undefined,
+            title: unit.name,
+          })
+        );
       }
       return pdfs;
     },
-    [parts]
+    [items, edits]
   );
 
   const clearAll = useCallback(() => {
@@ -194,7 +239,7 @@ export function useDocumentAssembler(): DocumentAssemblerHook {
     move,
     shift,
     toggleDeleted,
-    togglePartStart,
+    setBoundary,
     setSegmentName,
     clearSegmentName,
     exportAssembledPdf,

@@ -7,6 +7,8 @@ import {
   deriveParts,
   assignPartIndices,
   deriveDocRuns,
+  deriveSplitUnits,
+  ItemEdits,
 } from "./documents";
 
 let n = 0;
@@ -79,9 +81,9 @@ describe("deriveParts (item-anchored segments)", () => {
     expect(parts[0].startItemId).toBe("i1");
   });
 
-  it("a partStart marker begins a new part; identity is the live item's id", () => {
+  it("a boundary marker begins a new part; identity is the live item's id", () => {
     const items = five();
-    const parts = deriveParts(items, { i3: { deleted: false, partStart: true } });
+    const parts = deriveParts(items, { i3: { deleted: false, boundary: "split" } });
     expect(parts).toHaveLength(2);
     expect(parts[1].startItemId).toBe("i3");
     expect(parts[1].items.map((i) => i.id)).toEqual(["i3", "i4", "i5"]);
@@ -90,9 +92,9 @@ describe("deriveParts (item-anchored segments)", () => {
   it("deleted items are excluded but do not merge neighbouring parts", () => {
     // Cut at i3, then delete i3: the boundary (and name) carries to i4.
     const items = five();
-    const edits = {
-      i3: { deleted: true, partStart: true, name: "B" },
-      i2: { deleted: true, partStart: false },
+    const edits: ItemEdits = {
+      i3: { deleted: true, boundary: "split", name: "B" },
+      i2: { deleted: true },
     };
     const parts = deriveParts(items, edits);
     expect(parts).toHaveLength(2);
@@ -104,10 +106,10 @@ describe("deriveParts (item-anchored segments)", () => {
 
   it("a segment whose every item is deleted produces no part", () => {
     const items = five();
-    const edits = {
-      i3: { deleted: true, partStart: true },
-      i4: { deleted: true, partStart: false },
-      i5: { deleted: true, partStart: false },
+    const edits: ItemEdits = {
+      i3: { deleted: true, boundary: "split" },
+      i4: { deleted: true },
+      i5: { deleted: true },
     };
     const parts = deriveParts(items, edits);
     expect(parts).toHaveLength(1);
@@ -117,7 +119,7 @@ describe("deriveParts (item-anchored segments)", () => {
   it("names are keyed to the part, not a position (reorder-safe)", () => {
     // Part anchored at i3 named "B"; inserting items before keeps the name.
     const items = five();
-    const edits = { i3: { deleted: false, partStart: true, name: "B" } };
+    const edits: ItemEdits = { i3: { deleted: false, boundary: "index", name: "B" } };
     const before = deriveParts(items, edits);
     const after = deriveParts(insertItems(items, [item()], 0), edits);
     expect(after[1].name).toBe(before[1].name); // "B" still anchored to i3's part
@@ -126,9 +128,9 @@ describe("deriveParts (item-anchored segments)", () => {
 
   it("consecutive markers do not create empty parts", () => {
     const items = five();
-    const edits = {
-      i2: { deleted: false, partStart: true },
-      i3: { deleted: false, partStart: true },
+    const edits: ItemEdits = {
+      i2: { deleted: false, boundary: "index" },
+      i3: { deleted: false, boundary: "split" },
     };
     const parts = deriveParts(items, edits);
     expect(parts).toHaveLength(3);
@@ -141,22 +143,22 @@ describe("deriveParts (item-anchored segments)", () => {
 describe("assignPartIndices (display helper)", () => {
   it("mirrors deriveParts boundaries including deleted items", () => {
     const items = [item(), item(), item(), item(), item()];
-    const edits = {
-      i2: { deleted: true, partStart: false },
-      i3: { deleted: false, partStart: true },
+    const edits: ItemEdits = {
+      i2: { deleted: true },
+      i3: { deleted: false, boundary: "split" },
     };
     expect(assignPartIndices(items, edits)).toEqual([0, 0, 1, 1, 1]);
   });
 
   it("deleted boundary item tints with the following part's origin clamped to previous", () => {
     const items = [item(), item(), item()];
-    const edits = { i2: { deleted: true, partStart: true } };
+    const edits: ItemEdits = { i2: { deleted: true, boundary: "split" } };
     expect(assignPartIndices(items, edits)).toEqual([0, 0, 1]);
   });
 
   it("all items before the first live one clamp to 0", () => {
     const items = [item(), item(), item()];
-    const edits = { i1: { deleted: true, partStart: false } };
+    const edits: ItemEdits = { i1: { deleted: true } };
     expect(assignPartIndices(items, edits)).toEqual([0, 0, 0]);
   });
 });
@@ -200,5 +202,76 @@ describe("deriveDocRuns (doc borders)", () => {
 
   it("empty list -> no runs", () => {
     expect(deriveDocRuns([])).toEqual([]);
+  });
+});
+
+describe("boundary kinds (index vs split)", () => {
+  const five = () => [item(), item(), item(), item(), item()];
+
+  it("index boundaries segment WITHOUT cutting (virtual)", () => {
+    const parts = deriveParts(five(), {
+      i1: { deleted: false, boundary: "index", name: "Intro" },
+      i3: { deleted: false, boundary: "index", name: "Body" },
+    });
+    expect(parts).toHaveLength(2);
+    expect(parts[0].boundary).toBe("index");
+    expect(parts.map((p) => p.name)).toEqual(["Intro", "Body"]);
+  });
+
+  it("implicit first part carries boundary: undefined", () => {
+    const parts = deriveParts(five());
+    expect(parts[0].boundary).toBeUndefined();
+  });
+});
+
+describe("deriveSplitUnits (index is virtual, split is real)", () => {
+  const five = () => [item(), item(), item(), item(), item()];
+
+  it("ONLY index boundaries -> ONE physical unit, segments nested as bookmarks", () => {
+    const units = deriveSplitUnits(five(), {
+      i1: { deleted: false, boundary: "index", name: "A" },
+      i3: { deleted: false, boundary: "index", name: "B" },
+    });
+    expect(units).toHaveLength(1);
+    expect(units[0].items).toHaveLength(5);
+    expect(units[0].segments.map((s) => s.name)).toEqual(["A", "B"]);
+    expect(units[0].segments[0].items).toHaveLength(2);
+    expect(units[0].segments[1].items).toHaveLength(3);
+  });
+
+  it("split boundaries cut into real units; index segments stay inside", () => {
+    const units = deriveSplitUnits(five(), {
+      i3: { deleted: false, boundary: "split", name: "Part Two" },
+      i5: { deleted: false, boundary: "index", name: "tail" },
+    });
+    expect(units).toHaveLength(2);
+    expect(units[0].items.map((i) => i.id)).toEqual(["i1", "i2"]);
+    expect(units[1].name).toBe("Part Two");
+    expect(units[1].items.map((i) => i.id)).toEqual(["i3", "i4", "i5"]);
+    expect(units[1].segments.map((s) => s.name)).toEqual(["tail"]);
+  });
+
+  it("an index boundary directly after a split starts the unit's first segment", () => {
+    const units = deriveSplitUnits(five(), {
+      i3: { deleted: false, boundary: "split", name: "X" },
+      i4: { deleted: false, boundary: "index", name: "inner" },
+    });
+    expect(units[1].segments.map((s) => s.name)).toEqual(["inner"]);
+  });
+
+  it("deleted split boundary carries to the next live item (name too)", () => {
+    const units = deriveSplitUnits(five(), {
+      i3: { deleted: true, boundary: "split", name: "kept" },
+    });
+    expect(units).toHaveLength(2);
+    expect(units[1].startItemId).toBe("i4");
+    expect(units[1].name).toBe("kept");
+  });
+
+  it("no boundaries at all -> one unit, no segments", () => {
+    const units = deriveSplitUnits(five());
+    expect(units).toHaveLength(1);
+    expect(units[0].items).toHaveLength(5);
+    expect(units[0].segments).toHaveLength(0);
   });
 });
