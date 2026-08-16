@@ -81,7 +81,14 @@ function thumbnailFromImageFile(file: File): Promise<{ url: string; width: numbe
   });
 }
 
-async function ingestPdf(file: File): Promise<DocumentItem[]> {
+export interface IngestOptions {
+  /** Per-file progress, 0..1. */
+  onProgress?: (fraction: number) => void;
+  /** Return true to abort (newer load cancels in-flight ingest). */
+  isCancelled?: () => boolean;
+}
+
+async function ingestPdf(file: File, opts: IngestOptions = {}): Promise<DocumentItem[]> {
   const pdfjs = await ensurePdfjs();
   if (!pdfjs) throw new Error("Couldn't start the PDF engine");
 
@@ -90,6 +97,7 @@ async function ingestPdf(file: File): Promise<DocumentItem[]> {
   const items: DocumentItem[] = [];
 
   for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+    if (opts.isCancelled?.()) return items; // cancelled mid-render
     const page = await pdf.getPage(pageNum);
     const viewport = page.getViewport({ scale: 1.0 });
     const canvas = document.createElement("canvas");
@@ -109,6 +117,9 @@ async function ingestPdf(file: File): Promise<DocumentItem[]> {
       height: canvas.height,
       source,
     });
+    opts.onProgress?.(pageNum / pdf.numPages);
+    // Yield to the event loop so the tab stays responsive and progress paints.
+    await new Promise((resolve) => setTimeout(resolve, 0));
   }
   return items;
 }
@@ -133,10 +144,10 @@ async function ingestImage(file: File): Promise<DocumentItem[]> {
  * Turn one File into items. Returns { ok:false, error } for unsupported files
  * so the caller can toast without throwing.
  */
-export async function ingestFile(file: File): Promise<IngestResult> {
+export async function ingestFile(file: File, opts: IngestOptions = {}): Promise<IngestResult> {
   if (isPdf(file)) {
     try {
-      return { items: await ingestPdf(file), ok: true };
+      return { items: await ingestPdf(file, opts), ok: true };
     } catch (err) {
       console.error("Failed to ingest PDF:", err);
       return { items: [], ok: false, error: `Couldn't open "${file.name}". The file may be corrupt or password-protected.` };
