@@ -44,6 +44,8 @@ import {
   Layers,
   Bookmark,
   Crop,
+  Pencil,
+  StickyNote,
   ZoomIn,
 } from "lucide-react";
 import JSZip from "jszip";
@@ -81,6 +83,7 @@ export const DocumentAssembler: React.FC = () => {
     toggleSegmentStart,
     cropItem,
     setSegmentName,
+    setItemNote,
     exportAssembledPdf,
     exportSegmentPdfs,
     exportSegmentPdf,
@@ -672,19 +675,26 @@ export const DocumentAssembler: React.FC = () => {
                                   <Edit2 size={10} className="opacity-50 shrink-0" />
                                 )}
                               </button>
-                              <span className="text-xs text-muted-foreground font-mono">
+                              <span className="flex items-center gap-1.5 text-xs text-muted-foreground font-mono">
+                                {edits[item.id]?.note && (
+                                  <span
+                                    className="flex items-center gap-0.5 not-italic text-amber-400/90"
+                                    title={edits[item.id]?.note}>
+                                    <StickyNote size={10} />
+                                  </span>
+                                )}
                                 {index + 1}
                               </span>
                             </div>
 
-                            {/* Crop */}
+                            {/* Edit (crop / magnifier / notes) */}
                             {!isShaded && (
                               <Button
                                 className="absolute top-2 right-2 h-8 w-8 rounded-full p-0 glass border border-white/15 text-foreground hover:text-primary hover:border-primary opacity-0 group-hover:opacity-100 transition-all duration-200"
                                 onClick={() => setCropItemId(item.id)}
-                                title="Crop this page"
-                                aria-label="Crop this page">
-                                <Crop size={16} />
+                                title="Edit page — crop, magnify, notes"
+                                aria-label="Edit page">
+                                <Pencil size={16} />
                               </Button>
                             )}
 
@@ -929,6 +939,8 @@ export const DocumentAssembler: React.FC = () => {
           void cropItem(id, rect, keep);
           setCropItemId(null);
         }}
+        note={cropItemId ? edits[cropItemId]?.note : undefined}
+        onSaveNote={(id, note) => setItemNote(id, note)}
       />
 
       {/* Rename dialog */}

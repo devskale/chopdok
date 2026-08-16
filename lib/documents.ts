@@ -90,6 +90,8 @@ export interface ItemEditState {
   segmentStart?: boolean;
   /** Custom segment name (shown in summary + becomes the PDF bookmark title). */
   name?: string;
+  /** Free-form page note (e.g. "p. 12", "invoice A") — shown on the card. */
+  note?: string;
 }
 
 export type ItemEdits = Record<string, ItemEditState>;

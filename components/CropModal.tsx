@@ -18,13 +18,16 @@ import {
 import { Button } from "@/components/ui/button";
 import { CropRect } from "@/lib/crop";
 import { DocumentItem } from "@/lib/documents";
-import { Crop as CropIcon, Check, ZoomIn } from "lucide-react";
+import { Crop as CropIcon, Check, ZoomIn, StickyNote, FileText } from "lucide-react";
 
 interface CropModalProps {
   item: DocumentItem | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onApply: (id: string, rect: CropRect, keepOriginal: boolean) => void;
+  /** current note, if any */
+  note?: string;
+  onSaveNote: (id: string, note: string) => void;
 }
 
 export const CropModal: React.FC<CropModalProps> = ({
@@ -32,10 +35,19 @@ export const CropModal: React.FC<CropModalProps> = ({
   open,
   onOpenChange,
   onApply,
+  note,
+  onSaveNote,
 }) => {
+  const [tab, setTab] = useState<"crop" | "notes">("crop");
+  const [noteDraft, setNoteDraft] = useState("");
   const [crop, setCrop] = useState<Crop>();
   const [keep, setKeep] = useState(false);
   const [loupe, setLoupe] = useState<{ x: number; y: number } | null>(null);
+  // seed the note draft whenever a different page opens
+  useEffect(() => {
+    if (open) setNoteDraft(note ?? "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, item?.id]);
   const surfaceRef = useRef<HTMLDivElement | null>(null);
   const imgRef = useRef<HTMLImageElement | null>(null);
   // Display size fitted to the available viewport (image never overflows).
@@ -129,14 +141,49 @@ export const CropModal: React.FC<CropModalProps> = ({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <CropIcon className="w-4 h-4 text-primary" />
-            Crop page
+            Edit page
           </DialogTitle>
-          <DialogDescription>
-            Drag the selection to move it, pull the corner handles to resize.
-          </DialogDescription>
+          <div className="flex gap-1.5 mt-1">
+            {(["crop", "notes"] as const).map((t) => (
+              <button
+                key={t}
+                onClick={() => setTab(t)}
+                className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md border transition-colors ${
+                  tab === t
+                    ? "bg-primary/15 border-primary/50 text-primary"
+                    : "bg-secondary/50 border-border/60 text-muted-foreground hover:text-foreground"
+                }`}>
+                {t === "crop" ? <CropIcon size={12} /> : <StickyNote size={12} />}
+                {t === "crop" ? "Crop" : "Notes"}
+              </button>
+            ))}
+          </div>
         </DialogHeader>
 
-        {item && (
+        {item && tab === "notes" && (
+          <div className="flex flex-col gap-4 py-2">
+            <div className="grid gap-2">
+              <label className="text-xs font-medium text-muted-foreground" htmlFor="page-note">
+                Page note (shown on the card — e.g. page number or special info)
+              </label>
+              <textarea
+                id="page-note"
+                value={noteDraft}
+                onChange={(e) => setNoteDraft(e.target.value)}
+                rows={3}
+                autoFocus
+                placeholder="e.g. p. 12 · invoice A · signed original"
+                className="w-full rounded-md border border-border/60 bg-background/60 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+            </div>
+            <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+              <FileText size={12} />
+              Notes are working metadata in the app (card label + summary).
+            </p>
+          </div>
+        )}
+
+        {item && tab === "crop" && (
           <div className="flex flex-col gap-4">
             {/* Surface — fitted to viewport, sharp corners.
                 Crop mode: selection handles. Inspect mode: loupe. */}
@@ -212,10 +259,22 @@ export const CropModal: React.FC<CropModalProps> = ({
           <Button variant="ghost" onClick={close}>
             Cancel
           </Button>
-          <Button onClick={apply} disabled={!crop} className="glow-primary">
-            <Check className="mr-2 h-4 w-4" />
-            Crop
-          </Button>
+          {tab === "crop" ? (
+            <Button onClick={apply} disabled={!crop} className="glow-primary">
+              <Check className="mr-2 h-4 w-4" />
+              Crop
+            </Button>
+          ) : (
+            <Button
+              onClick={() => {
+                if (item) onSaveNote(item.id, noteDraft);
+                close();
+              }}
+              className="glow-primary">
+              <Check className="mr-2 h-4 w-4" />
+              Save note
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

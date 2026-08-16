@@ -47,6 +47,8 @@ export interface DocumentAssemblerHook {
   cropItem: (id: string, rect: CropRect, keepOriginal: boolean) => Promise<void>;
   setSegmentName: (id: string, name: string) => void;
   clearSegmentName: (id: string) => void;
+  /** Page note (free-form metadata, shown on the card). */
+  setItemNote: (id: string, note: string) => void;
 
   /** One PDF from all live items (checkout: "one file"). */
   exportAssembledPdf: (opts?: ExportOptions) => Promise<Uint8Array>;
@@ -192,6 +194,15 @@ export function useDocumentAssembler(): DocumentAssemblerHook {
     setEdits((prev) => ({ ...prev, [id]: { ...DEFAULT_EDIT, ...prev[id], name } }));
   }, []);
 
+  const setItemNote = useCallback((id: string, note: string) => {
+    setEdits((prev) => {
+      const next = { ...DEFAULT_EDIT, ...prev[id], note: note.trim() || undefined };
+      const out: ItemEdits = { ...prev, [id]: next };
+      if (!next.deleted && !next.segmentStart && !next.name && !next.note) delete out[id];
+      return out;
+    });
+  }, []);
+
   const clearSegmentName = useCallback((id: string) => {
     setEdits((prev) => {
       const had = prev[id];
@@ -280,6 +291,7 @@ export function useDocumentAssembler(): DocumentAssemblerHook {
     cropItem,
     setSegmentName,
     clearSegmentName,
+    setItemNote,
     exportAssembledPdf,
     exportSegmentPdfs,
     exportSegmentPdf,
