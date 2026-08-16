@@ -42,19 +42,28 @@ export const CropModal: React.FC<CropModalProps> = ({
   // Display size fitted to the available viewport (image never overflows).
   const [box, setBox] = useState<{ w: number; h: number } | null>(null);
 
-  // Reserve: dialog chrome (~7rem incl. header/footer/meta) + viewport margins.
+  // Per-item reset — runs only when the item changes (not on every render).
   useEffect(() => {
     if (!open || !item) return;
-    setInspect(false);
-    setLoupe(null);
+    // schedule outside the render pass to avoid cascading renders
+    const reset = () => {
+      setInspect(false);
+      setLoupe(null);
+    };
     const fit = () => {
       const w = Math.min(window.innerWidth - 64, 896);
       const h = Math.max(240, window.innerHeight - 190);
       setBox({ w, h });
     };
-    fit();
+    const t = setTimeout(() => {
+      reset();
+      fit();
+    }, 0);
     window.addEventListener("resize", fit);
-    return () => window.removeEventListener("resize", fit);
+    return () => {
+      clearTimeout(t);
+      window.removeEventListener("resize", fit);
+    };
   }, [open, item]);
 
   const close = () => onOpenChange(false);
