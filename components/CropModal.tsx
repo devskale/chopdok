@@ -3,7 +3,7 @@
 // Crop modal — react-image-crop pattern: draggable/resizable selection with
 // corner handles over the page; dimmed outside; apply via Crop button.
 
-import React, { useState, useRef, useCallback } from "react";
+import React, { useState, useRef, useCallback, useEffect } from "react";
 import Image from "next/image";
 import ReactCrop, { Crop, centerCrop, makeAspectCrop } from "react-image-crop";
 import "react-image-crop/dist/ReactCrop.css";
@@ -36,6 +36,21 @@ export const CropModal: React.FC<CropModalProps> = ({
   const [crop, setCrop] = useState<Crop>();
   const [keep, setKeep] = useState(false);
   const imgRef = useRef<HTMLImageElement | null>(null);
+  // Display size fitted to the available viewport (image never overflows).
+  const [box, setBox] = useState<{ w: number; h: number } | null>(null);
+
+  // Reserve: dialog chrome (~7rem incl. header/footer/meta) + viewport margins.
+  useEffect(() => {
+    if (!open || !item) return;
+    const fit = () => {
+      const w = Math.min(window.innerWidth - 64, 896);
+      const h = Math.max(240, window.innerHeight - 190);
+      setBox({ w, h });
+    };
+    fit();
+    window.addEventListener("resize", fit);
+    return () => window.removeEventListener("resize", fit);
+  }, [open, item]);
 
   const close = () => onOpenChange(false);
 
@@ -60,6 +75,15 @@ export const CropModal: React.FC<CropModalProps> = ({
     );
   }, []);
 
+  /** Fit the bitmap into the computed box, preserving aspect. */
+  const fitted =
+    item && box
+      ? (() => {
+          const scale = Math.min(box.w / item.width, box.h / item.height, 1.5);
+          return { w: Math.round(item.width * scale), h: Math.round(item.height * scale) };
+        })()
+      : null;
+
   const px =
     crop && item && crop.unit === "%"
       ? {
@@ -83,24 +107,26 @@ export const CropModal: React.FC<CropModalProps> = ({
 
         {item && (
           <div className="flex flex-col gap-4">
-            {/* Crop surface — large, sharp-cornered */}
-            <div className="flex justify-center bg-background/60 rounded-none p-2">
-              <ReactCrop
-                crop={crop}
-                onChange={(_, percent) => setCrop(percent)}
-                keepSelection
-              >
-                <Image
-                  src={item.thumbnailUrl}
-                  alt={item.label}
-                  width={item.width}
-                  height={item.height}
-                  unoptimized
-                  className="max-h-[70vh] w-auto object-contain rounded-none"
-                  draggable={false}
-                  onLoad={(e) => onLoad(e.currentTarget as HTMLImageElement)}
-                />
-              </ReactCrop>
+            {/* Crop surface — fitted to viewport, sharp-cornered */}
+            <div className="flex justify-center bg-background/60 rounded-none p-2 overflow-hidden">
+              {fitted && (
+                <ReactCrop
+                  crop={crop}
+                  onChange={(_, percent) => setCrop(percent)}
+                  keepSelection
+                >
+                  <Image
+                    src={item.thumbnailUrl}
+                    alt={item.label}
+                    width={fitted.w}
+                    height={fitted.h}
+                    unoptimized
+                    className="rounded-none"
+                    draggable={false}
+                    onLoad={(e) => onLoad(e.currentTarget as HTMLImageElement)}
+                  />
+                </ReactCrop>
+              )}
             </div>
 
             <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground">
