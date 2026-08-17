@@ -1,3 +1,5 @@
+import path from "node:path";
+
 /** @type {import('next').NextConfig} */
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? "/chopdok";
 
@@ -17,6 +19,11 @@ const nextConfig = {
       { protocol: "https", hostname: "skale.io" },
       { protocol: "https", hostname: "skale.dev" },
     ],
+  },
+  // Turbopack: explicit workspace root (dev machine has multiple lockfiles;
+  // without this Next guesses and warns on every boot).
+  turbopack: {
+    root: path.join(import.meta.dirname),
   },
 };
 

@@ -1,4 +1,4 @@
-import { PdfUploader } from "@/components/PdfUploader";
+import { DocumentAssembler } from "@/components/DocumentAssembler";
 import Image from "next/image";
 import Link from "next/link";
 import type { Metadata } from "next";
@@ -31,7 +31,7 @@ export default function Page() {
             </span>
           </div>
           <p className="hidden md:block text-sm text-muted-foreground/80">
-            Free, in-browser PDF chopping — no uploads, no ads, no tracking
+            Free, in-browser document assembling — no uploads, no ads, no tracking
           </p>
           <div className="relative w-20 h-8 opacity-50 hover:opacity-100 transition-opacity">
             <Image
@@ -57,16 +57,16 @@ export default function Page() {
             100% client-side · your files never leave the browser
           </span>
           <h1 className="mt-5 text-4xl sm:text-5xl font-bold tracking-tight">
-            Chop PDFs <span className="text-gradient">elegantly</span> in your browser
+            Assemble documents <span className="text-gradient">elegantly</span> in your browser
           </h1>
           <p className="mt-4 text-base text-muted-foreground">
-            Split, delete, and rename pages — visually, instantly, and privately.
+            Drop PDFs and images, rearrange them, and export as PDF — visually, instantly, privately.
           </p>
         </div>
 
         {/* App */}
         <div className="w-full max-w-5xl">
-          <PdfUploader />
+          <DocumentAssembler />
         </div>
       </main>
 
@@ -75,7 +75,7 @@ export default function Page() {
           <div className="flex items-center gap-2">
             <span className="font-semibold text-foreground">ChopDok</span>
             <span className="text-muted-foreground/60">·</span>
-            <span className="font-mono text-xs">v1.8</span>
+            <span className="font-mono text-xs">v2.0</span>
           </div>
           <div className="flex items-center gap-6">
             <Link

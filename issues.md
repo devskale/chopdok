@@ -5,6 +5,71 @@ All gates green locally: `tsc --noEmit` · `npm test` (17/17) · `npm run build`
 
 ---
 
+## 🎯 Repurpose — from PDF splitter to document assembler
+
+**One-liner:** Assemble what you have — PDFs, images, or both — into what you need: reorder, split, delete, and export as PDF. **Still 100% client-side.**
+
+**The shift:**
+
+| | Before (PDF splitter) | After (document assembler) |
+|---|---|---|
+| Input | one PDF | PDF(s) **and/or** image(s) — whatever the starting point |
+| Model | pages of one file | one ordered list of **items** (pages + images) |
+| Operations | split, delete, rename | + **rearrange/reorder**, + **merge** |
+| Output | N split PDFs | one assembled **PDF** (images become pages); split PDFs stay |
+
+**Jobs the app does after the repurpose:**
+1. **Start anywhere** — drop a PDF, a scan, a photo, or a mixed pile; each becomes the same thing: items in a list.
+2. **Rearrange** — drag/move items to build the right order (the core new capability).
+3. **Assemble to PDF** — images + pages in one ordered document, exported as a single PDF.
+4. **Still splits** — the existing split/delete/rename flow keeps working unchanged.
+
+**🔌 Later addons (not in the first repurpose cut):**
+- [x] **Crop** — ✅ shipped (`f dbc8d4`+): hover a card → ✂ crop icon → modal (drag a region or half-page presets; crop in place, or *keep original* to crop as a copy — the two-up-scan flow). Cropped pages are new image items at full res (images) / preview res (PDF pages); crop-in-place inherits the segment marker + name. Pure region math in `lib/crop.ts` (unit-tested). Also fixed the cross-doc drag no-op: gap computation now runs grid-level so drops in gutters resolve too.
+
+**Non-negotiables (unchanged):** everything stays in the browser — no uploads, no CDN worker, no data collection. The privacy pitch is the product.
+
+**Decisions (locked):**
+1. **Page size** — setting in export UI: `fit` (default, page = image aspect) | `a4` (letterboxed, centered). Extensible list later.
+2. **Reorder UX** — drag *and* arrow buttons (native HTML5 DnD, zero new deps).
+3. **Segments are nameable** — scissors creates a segment; name it at cut time or later. Name anchors to the segment (first item's id) and survives reorder/splits moving (generalizes the #4 fix).
+4. **webp/gif/avif** — auto re-encode to PNG via canvas before embedding (PDFs only embed PNG/JPEG natively); seamless to the user.
+
+---
+
+## 📋 Repurpose implementation plan (`feat/merge-split-images`)
+
+Each phase lands shippable with all gates green (`tsc --noEmit` · `npm test` · `npm run build` · `npm run lint`). The old PDF flow stays mounted until Phase 4 swaps the UI.
+
+### Phase 1 — Model & pure logic ✅ (started)
+- [x] `lib/documents.ts` — `DocumentItem`, `ItemSource`, `moveItem` / `insertItems` / `removeItems`
+- [ ] `documents.test.ts` — reorder edge cases (first/last/clamp/out-of-bounds, insert at ends, remove multi)
+- [ ] **Item-anchored parts**: store splits as a `partStart` marker *on items* (scissors = "this item starts a new part"), not a separate index array. Derive `splitPoints` for `parts.ts` from markers; part identity = id of its first item → **rename anchors survive reorder** (generalizes the #4 fix). New pure fn `deriveParts(items)` + tests.
+
+### Phase 2 — Ingest & export adapters
+- [x] `lib/ingest.ts` — `ingestFile(file)`: PDF → item/page (pdf.js render, token-cancelled), image → 1 item (object-URL thumb). Keep unsupported-type soft-fail (`ok:false,error`) for toasts.
+- [ ] `ingest.test.ts` — dispatch table (PDF/image/other) at minimum; pdf.js render path stays a documented test gap (needs canvas mock)
+- [ ] `lib/exportPdf.ts` — **one export engine**: `exportPdf(items, { pageSize }): Promise<Uint8Array>`
+  - group `pdf` items by source file → load each once (pdf-lib) → `copyPages`
+  - `image` items → `embedPng`/`embedJpg`; webp/gif/avif → canvas re-encode to PNG first (PDFs can only embed PNG/JPEG directly — conversion is automatic, user does nothing)
+  - **page-size setting**: `fit` (default, page matches image aspect) | `a4` (letterbox image onto A4 portrait, centered) — exposed in export UI, extensible list
+- [ ] `splitItemsIntoPdfs(items, …)` — thin: `computePartRanges` over live items → `exportPdf` per range → replaces `pdfSplit.ts` (old fn stays green behind a wrapper until Phase 4)
+- [ ] `exportPdf.test.ts` — integration (real pdf-lib docs + PNG/JPEG buffers): page count, **order**, mixed sources, image page dims, `a4` mode dims
+
+### Phase 3 — Hook
+- [ ] `lib/useDocumentAssembler.ts` — state: `items[]`, per-item `{ deleted, partStart, name }`; actions: `addFiles(multi)`, `move`, `remove`, `togglePartStart`, `rename`, `exportAssembledPdf()`, `exportSplitParts()`, `clearAll` (revokes object URLs); ingest progress + render-token cancellation carried over
+- [ ] hook tests: unsupported-file guard (port of #6 test), clearAll reset, addFiles appends
+
+### Phase 4 — UI
+- [ ] `components/DocumentAssembler.tsx` (replaces `PdfUploader`): multi-file dropzone (`accept="application/pdf,image/*" multiple`), mixed item grid, **drag-to-reorder (native HTML5 DnD, no new dep) + arrow buttons for a11y**, scissors/split stays, shade-to-delete stays, **segment naming stays** (dialog now also shown when creating a split — name the new segment right where you cut), export settings (page size) + two actions: **Assemble PDF** / **Split & download parts** (+ ZIP)
+- [ ] `app/page.tsx` + landing copy: "splitter" → "assembler" positioning; `PdfUploader.test.tsx` smoke ports over
+
+### Phase 5 — Polish & ship
+- [ ] README/issues.md refresh; manual browser smoke (mixed PDF+images → reorder → assemble; split flow regression)
+- [ ] All gates + commit per phase
+
+---
+
 ## ✅ Modernization complete (Jul 2026)
 
 Full upgrade to latest everywhere, switched from pnpm → **npm** (kills the old pnpm-11 build-approval blocker). All four gates green.
