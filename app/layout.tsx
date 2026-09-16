@@ -36,12 +36,27 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const appJsonld = {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    name: "ChopDok",
+    url: "https://skale.dev/chopdok",
+    applicationCategory: "UtilityApplication",
+    operatingSystem: "Any",
+    offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+    description: "Assemble PDFs and images into one document — reorder, split, and export as PDF. Free, private, in your browser.",
+  };
+
   return (
     <html lang="en" className="dark" suppressHydrationWarning>
       <body
         className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}
         suppressHydrationWarning>
         {children}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(appJsonld) }}
+        />
         <Toaster />
       </body>
     </html>
