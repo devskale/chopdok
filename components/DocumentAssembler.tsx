@@ -45,7 +45,6 @@ import {
   Crop,
   Pencil,
   StickyNote,
-  ZoomIn,
 } from "lucide-react";
 import JSZip from "jszip";
 
@@ -398,24 +397,24 @@ export const DocumentAssembler: React.FC = () => {
               <Upload className="w-7 h-7" strokeWidth={1.75} />
             </div>
             <div className="space-y-1.5">
-              <label
-                htmlFor="file-upload"
-                className="cursor-pointer block"
-                aria-label="Select PDF or image files">
-                <span className="font-semibold text-lg text-foreground">
-                  Click to upload
-                </span>
-                <span className="text-muted-foreground"> or drag &amp; drop</span>
-              </label>
               <Input
                 id="file-upload"
                 type="file"
                 accept="application/pdf,image/*"
                 multiple
                 onChange={handleFileChange}
-                className="hidden"
+                className="sr-only peer"
                 aria-label="Upload PDFs or images"
               />
+              <label
+                htmlFor="file-upload"
+                className="cursor-pointer block rounded-md px-2 py-1 -mx-2 peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-background"
+                aria-label="Select PDF or image files">
+                <span className="font-semibold text-lg text-foreground">
+                  Click to upload
+                </span>
+                <span className="text-muted-foreground"> or drag &amp; drop</span>
+              </label>
               <p className="text-sm text-muted-foreground/80">
                 PDFs &amp; images · mix freely · stays on your device
               </p>
@@ -607,22 +606,11 @@ export const DocumentAssembler: React.FC = () => {
                             {/* Edit (crop / magnifier / notes) */}
                             {!isShaded && (
                               <Button
-                                className="absolute top-2 right-2 h-8 w-8 rounded-full p-0 glass border border-white/15 text-foreground hover:text-primary hover:border-primary opacity-0 group-hover:opacity-100 transition-all duration-200"
+                                className="absolute top-2 right-2 h-8 w-8 rounded-full p-0 glass border border-white/15 text-foreground hover:text-primary hover:border-primary opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100 transition-all duration-200"
                                 onClick={() => setEditItemId(item.id)}
                                 title="Edit page — crop, magnifier, notes"
                                 aria-label="Edit page">
                                 <Pencil size={16} />
-                              </Button>
-                            )}
-
-                            {/* View (magnifier) — opens the page in a large viewer with a lens */}
-                            {!isShaded && (
-                              <Button
-                                className="absolute bottom-12 left-2 h-8 w-8 rounded-full p-0 glass border border-white/15 text-foreground hover:text-primary hover:border-primary opacity-0 group-hover:opacity-100 transition-all duration-200"
-                                onClick={() => setEditItemId(item.id)}
-                                title="Edit page — crop, magnifier, notes"
-                                aria-label="Edit page">
-                                <ZoomIn size={16} />
                               </Button>
                             )}
 
@@ -632,7 +620,7 @@ export const DocumentAssembler: React.FC = () => {
                                 ${
                                   isShaded
                                     ? "bg-foreground text-background hover:bg-foreground/80"
-                                    : "glass border border-white/15 text-foreground hover:bg-destructive hover:text-destructive-foreground hover:border-destructive opacity-0 group-hover:opacity-100"
+                                    : "glass border border-white/15 text-foreground hover:bg-destructive hover:text-destructive-foreground hover:border-destructive opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100"
                                 }
                               `}
                               onClick={() => toggleDeleted(item.id)}

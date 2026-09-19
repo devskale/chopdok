@@ -205,3 +205,16 @@
       0 8px 30px -8px hsl(var(--primary) / 0.5);
   }
 }
+
+/* Reduced motion: kill decorative loops (e.g. hero badge ping) and clamp
+   transitions for vestibular-safe browsing (WCAG 2.3.3 best practice). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

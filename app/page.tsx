@@ -33,16 +33,21 @@ export default function Page() {
           <p className="hidden md:block text-sm text-muted-foreground/80">
             Free, in-browser document assembling — no uploads, no ads, no tracking
           </p>
-          <div className="relative w-20 h-8 opacity-50 hover:opacity-100 transition-opacity">
-            <Image
-              src="https://skale.dev/logos/skalelogo_red_trans.png"
-              alt="Logo"
-              fill
-              sizes="5rem"
-              className="object-contain"
-              priority
-            />
-          </div>
+            <Link
+              href="https://skale.dev"
+              target="_blank"
+              rel="noopener"
+              aria-label="skale.dev — Apps & Tools"
+              className="relative w-20 h-8 opacity-50 hover:opacity-100 transition-opacity">
+              <Image
+                src="https://skale.dev/logos/skalelogo_red_trans.png"
+                alt=""
+                fill
+                sizes="5rem"
+                className="object-contain"
+                priority
+              />
+            </Link>
         </div>
       </header>
 
@@ -84,7 +89,7 @@ export default function Page() {
               Disclaimer
             </Link>
             <span className="text-muted-foreground/60">
-              &copy; {new Date().getFullYear()} skale.dev
+              <span className="text-muted-foreground">&copy; {new Date().getFullYear()} skale.dev</span>
             </span>
           </div>
         </div>
