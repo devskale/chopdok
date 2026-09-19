@@ -14,7 +14,16 @@ export type IngestResult = {
   ok: boolean;
   /** Human-readable reason when `ok` is false. */
   error?: string;
+  /** Non-fatal heads-up (e.g. huge document) — shown as a warning toast. */
+  warning?: string;
 };
+
+// Memory guards: thumbnails are PNG dataURLs held for the whole session, so
+// cost scales with pages × viewport size. Hard-reject absurd sizes, warn on
+// merely big ones (issues: no guard = tab memory blowup without a hint).
+export const MAX_FILE_BYTES = 100 * 1024 * 1024; // 100 MB per file
+export const WARN_PAGES = 150;
+export const MAX_PAGES = 400;
 
 // ---- pdf.js bootstrap ----
 
@@ -110,6 +119,8 @@ export interface IngestOptions {
   onProgress?: (fraction: number) => void;
   /** Return true to abort (newer load cancels in-flight ingest). */
   isCancelled?: () => boolean;
+  /** Non-fatal heads-up (large page counts) for the caller's toast. */
+  onWarning?: (message: string) => void;
 }
 
 async function ingestPdf(file: File, opts: IngestOptions = {}): Promise<DocumentItem[]> {
@@ -118,6 +129,16 @@ async function ingestPdf(file: File, opts: IngestOptions = {}): Promise<Document
 
   const data = new Uint8Array(await file.arrayBuffer());
   const pdf = await pdfjs.getDocument({ data }).promise;
+  if (pdf.numPages > MAX_PAGES) {
+    throw new Error(
+      `"${file.name}" has ${pdf.numPages} pages — max is ${MAX_PAGES}. Split the file first.`
+    );
+  }
+  if (pdf.numPages > WARN_PAGES) {
+    opts.onWarning?.(
+      `${pdf.numPages} pages — large documents can use a lot of memory.`
+    );
+  }
   const items: DocumentItem[] = [];
 
   for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
@@ -166,12 +187,26 @@ async function ingestImage(file: File): Promise<DocumentItem[]> {
 
 /**
  * Turn one File into items. Returns { ok:false, error } for unsupported files
- * so the caller can toast without throwing.
+ * so the caller can toast without throwing. `warning` carries a non-fatal
+ * heads-up (huge page counts) alongside a successful result.
  */
 export async function ingestFile(file: File, opts: IngestOptions = {}): Promise<IngestResult> {
+  if (file.size > MAX_FILE_BYTES) {
+    const mb = Math.round(file.size / (1024 * 1024));
+    return {
+      items: [],
+      ok: false,
+      error: `"${file.name}" is ${mb} MB — max is ${MAX_FILE_BYTES / (1024 * 1024)} MB.`,
+    };
+  }
   if (isPdf(file)) {
+    let warning: string | undefined;
     try {
-      return { items: await ingestPdf(file, opts), ok: true };
+      const items = await ingestPdf(file, {
+        ...opts,
+        onWarning: (m) => (warning = m),
+      });
+      return warning ? { items, ok: true, warning } : { items, ok: true };
     } catch (err) {
       console.error("Failed to ingest PDF:", err);
       return { items: [], ok: false, error: `Couldn't open "${file.name}". The file may be corrupt or password-protected.` };

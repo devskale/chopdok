@@ -95,6 +95,9 @@ export function useDocumentAssembler(): DocumentAssemblerHook {
         toast({ variant: "destructive", title: "Couldn't add file", description: result.error });
         continue;
       }
+      if (result.warning) {
+        toast({ title: "Large document", description: result.warning });
+      }
       if (result.items.length) {
         setItems((prev) => insertItems(prev, result.items, prev.length));
         // Each file arrives as an auto-named virtual segment, so multi-file
@@ -232,7 +235,11 @@ export function useDocumentAssembler(): DocumentAssemblerHook {
         if (part.name) outline.push({ title: part.name, pageIndex: cursor });
         cursor += part.items.length;
       }
-      return exportPdf(liveItems, { ...opts, outline: outline.length ? outline : undefined });
+      return exportPdf(liveItems, {
+        ...opts,
+        outline: outline.length ? outline : undefined,
+        title: opts.title ?? "ChopDok — assembled document",
+      });
     },
     [liveItems, parts]
   );

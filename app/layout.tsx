@@ -16,6 +16,7 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://skale.dev"),
   title: "ChopDok — merge, split & reorder PDFs",
   description: "Assemble PDFs and images into one document — reorder, split, and export as PDF, free and entirely in your browser. No uploads, no ads, no data collection.",
   alternates: { canonical: "https://skale.dev/chopdok" },
@@ -24,6 +25,11 @@ export const metadata: Metadata = {
     description: "Assemble PDFs and images into one document — reorder, split, and export as PDF. Free, private, in your browser.",
     url: "https://skale.dev/chopdok",
     siteName: "skale.dev Apps",
+    images: [{ url: `${BASE_PATH}/og-image.png`, width: 1200, height: 630, alt: "ChopDok — assemble documents in your browser" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    images: [`${BASE_PATH}/og-image.png`],
   },
   icons: {
     icon: `${BASE_PATH}/choppr.png`,

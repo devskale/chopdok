@@ -242,8 +242,14 @@ export const DocumentAssembler: React.FC = () => {
   const handleAssemble = async () => {
     setIsExporting(true);
     try {
-      const bytes = await exportAssembledPdf({ pageSize });
-      replaceResults([pdfFile(bytes, "chopdok-assembled.pdf")]);
+      // Name the output after the first named segment (fall back to generic);
+      // also becomes the PDF's Title metadata via exportAssembledPdf.
+      const stem =
+        (parts.find((p) => p.name)?.name ?? "")
+          .replace(/[^\p{L}\p{N}]+/gu, "-")
+          .replace(/^-+|-+$/g, "") || "chopdok";
+      const bytes = await exportAssembledPdf({ pageSize, title: stem });
+      replaceResults([pdfFile(bytes, `${stem}-assembled.pdf`)]);
     } catch (err) {
       console.error("Assemble failed:", err);
       replaceResults([]);
