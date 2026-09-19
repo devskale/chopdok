@@ -418,6 +418,22 @@ export const DocumentAssembler: React.FC = () => {
               <p className="text-sm text-muted-foreground/80">
                 PDFs &amp; images · mix freely · stays on your device
               </p>
+              {/* first-run guidance: the three beats of the app, one glance
+                  (ledger F7) — numbers as tiny ring badges, muted text */}
+              <ol className="flex items-center justify-center gap-4 pt-3 text-xs text-muted-foreground" aria-label="How it works">
+                {["Drop files", "Arrange & cut", "Export as PDF"].map(
+                  (step, i) => (
+                    <li key={step} className="flex items-center gap-1.5">
+                      <span
+                        aria-hidden="true"
+                        className="inline-flex h-4.5 w-4.5 shrink-0 items-center justify-center rounded-full border border-border text-[10px] leading-none">
+                        {i + 1}
+                      </span>
+                      {step}
+                    </li>
+                  )
+                )}
+              </ol>
             </div>
           </div>
         ) : (
